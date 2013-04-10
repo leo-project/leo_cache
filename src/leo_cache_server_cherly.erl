@@ -63,8 +63,8 @@ get(Id, Key) ->
     case get_handler(Id) of
         undefined ->
             {error, ?ERROR_DISC_CACHE_INACTIVE};
-        Handler ->
-            case catch cherly:get(Handler, Key) of
+        Pid ->
+            case catch gen_server:call(Pid, {get, Key}) of
                 {ok, Value} ->
                     %% @TODO - count-up
                     {ok, Value};
@@ -84,8 +84,8 @@ put(Id, Key, Value) ->
     case get_handler(Id) of
         undefined ->
             {error, ?ERROR_DISC_CACHE_INACTIVE};
-        Handler ->
-            case catch cherly:put(Handler, Key, Value) of
+        Pid ->
+            case catch gen_server:call(Pid, {put, Key, Value}) of
                 ok ->
                     %% @TODO - count-up
                     ok;
@@ -103,8 +103,8 @@ delete( Id, Key) ->
     case get_handler(Id) of
         undefined ->
             {error, ?ERROR_DISC_CACHE_INACTIVE};
-        Handler ->
-            case catch cherly:remove(Handler, Key) of
+        Pid ->
+            case catch gen_server:call(Pid, {delete, Key}) of
                 ok ->
                     %% @TODO - count-up
                     ok;
@@ -157,7 +157,8 @@ get_handler(Id) ->
 start_1(0, _) ->
     ok;
 start_1(Id, RamCacheCapacity) ->
-    {ok, Handler} = cherly:start(RamCacheCapacity),
-    true = ets:insert(?ETS_CACHE_HANDLERS, {gen_id(Id), Handler}),
+    ProcId = gen_id(Id),
+    {ok, Pid} = cherly_server:start_link(ProcId, RamCacheCapacity),
+    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
     start_1(Id - 1, RamCacheCapacity).
 
