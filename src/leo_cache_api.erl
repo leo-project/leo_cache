@@ -42,27 +42,32 @@
 -spec(start() ->
              ok | {error, any()}).
 start() ->
-    start([{?PROP_WORKERS,         3},
-           {?PROP_RAM_CACHE_MOD,   'leo_cache_server_cherly'},
-           {?PROP_RAM_CACHE_SIZE,  1000000},
-           {?PROP_DISC_CACHE_MOD,  'leo_cache_server_dcerl'},
-           {?PROP_DISC_CACHE_SIZE, 1000000}
+    start([
+           {?PROP_RAM_CACHE_NAME,     'cherly'},
+           {?PROP_RAM_CACHE_WORKERS,  3},
+           {?PROP_RAM_CACHE_SIZE,     1000000},
+           {?PROP_DISC_CACHE_NAME,    'dcerl'},
+           {?PROP_DISC_CACHE_WORKERS, 3},
+           {?PROP_DISC_CACHE_SIZE,    1000000}
           ]).
 
 -spec(start(list(tuple())) ->
              ok | {error, any()}).
 start(Options) ->
     ok = leo_misc:init_env(),
-    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options),
+    RC = ?gen_mod_name(leo_misc:get_value(?PROP_RAM_CACHE_NAME,  Options)),
+    DC = ?gen_mod_name(leo_misc:get_value(?PROP_DISC_CACHE_NAME, Options)),
+    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
+                                                                {?PROP_DISC_CACHE_MOD, DC}]),
     catch ets:new(?ETS_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
 
-    Workers = leo_misc:get_value(?PROP_WORKERS, Options),
-    RC = leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options),
+    Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
     ok = RC:start(Workers, Options),
 
     %% @Pending
     %% DC = leo_misc:get_value(?PROP_DISC_CACHE_MOD, Options),
     %% ok = DC:start(Workers, Options),
+    ?debugVal(DC),
     ok.
 
 
@@ -78,13 +83,16 @@ stop() ->
              not_found | {ok, binary()} | {error, any()}).
 get(Key) ->
     {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
-    {Id, RC,_DC} = ?cache_servers(Key, Options),
+    #cache_server{ram_cache_mod    = RC,
+                  ram_cache_index  = Id1,
+                  disc_cache_mod   = _DC,
+                  disc_cache_index = _Id2} = ?cache_servers(Key, Options),
 
-    case RC:get(Id, Key) of
+    case RC:get(Id1, Key) of
         {ok, Bin} ->
             {ok, Bin};
         not_found ->
-            %% pending DC:get(Id, Key);
+            %% pending - DC:get(Id2, Key);
             not_found;
         {error, Cause} ->
             {error, Cause}
@@ -106,13 +114,16 @@ get(_Ref,_Key) ->
 put(Key, Value) ->
     {ok, Options}  = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     MaxRamCacheLen = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
-    {Id, RC, DC} = ?cache_servers(Key, Options),
+    #cache_server{ram_cache_mod    = RC,
+                  ram_cache_index  = Id1,
+                  disc_cache_mod   = DC,
+                  disc_cache_index = Id2} = ?cache_servers(Key, Options),
 
     case (size(Value) < MaxRamCacheLen) of
         true ->
-            RC:put(Id, Key, Value);
+            RC:put(Id1, Key, Value);
         false ->
-            DC:put(Id, Key)
+            DC:put(Id2, Key)
     end.
 
 
@@ -129,11 +140,14 @@ put(_Ref,_Key,_Chunk) ->
              ok | {error, any()}).
 delete(Key) ->
     {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
-    {Id, RC,_DC} = ?cache_servers(Key, Options),
+    #cache_server{ram_cache_mod    = RC,
+                  ram_cache_index  = Id1,
+                  disc_cache_mod   = _DC,
+                  disc_cache_index = _Id2} = ?cache_servers(Key, Options),
 
-    case RC:delete(Id, Key) of
+    case RC:delete(Id1, Key) of
         ok ->
-            %% pendingDC:delete(Id, Key)
+            %% pending - DC:delete(Id2, Key)
             ok;
         {error, Cause} ->
             {error, Cause}
@@ -170,8 +184,4 @@ stats() ->
 %%====================================================================
 %% @doc Retrieve a srever id
 %% @private
-get_id(Key, Options) ->
-    Workers = leo_misc:get_value(?PROP_WORKERS, Options),
-    Index = erlang:phash2(Key, Workers),
-    Index.
 
