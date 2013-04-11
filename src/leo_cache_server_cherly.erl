@@ -74,6 +74,7 @@ get_ref(_Id, _Key) ->
 get(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {get, Key}) of
@@ -82,7 +83,6 @@ get(Id, Key) ->
                 not_found ->
                     not_found;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -101,13 +101,13 @@ get(_Id,_Ref,_Key) ->
 put(Id, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {put, Key, Value}) of
                 ok ->
                     ok;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -140,13 +140,13 @@ put_end_tran(_Id,_Ref,_Key,_IdCommit) ->
 delete( Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {delete, Key}) of
                 ok ->
                     ok;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -174,6 +174,19 @@ start_1(Id, CacheCapacity) ->
     {ok, Pid} = cherly_server:start_link(ProcId, CacheCapacity),
     true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
     start_1(Id - 1, CacheCapacity).
+
+
+%% @doc Re-launch a process
+%% @private
+restart(Id) ->
+    Options = ?get_options(),
+    CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
+    Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
+
+    ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
+    {ok, Pid} = cherly_server:start_link(ProcId, erlang:round(CacheCapacity/Workers)),
+    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    ok.
 
 
 %% @doc Stop Proc(s)

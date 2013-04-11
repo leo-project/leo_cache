@@ -117,7 +117,11 @@
 
 %% Retrieve process index
 -define(get_proc_index(_W,_K1,_O1),
-        erlang:phash2(_K1, leo_misc:get_value(_W, _O1))+1).
+        case leo_misc:get_value(_W, _O1) of
+            Val when is_integer(Val) andalso Val > 0 ->
+                erlang:phash2(_K1, Val) +1;
+            _ -> 0
+        end).
 
 %% Retrieve num of workers
 -define(get_workers(),

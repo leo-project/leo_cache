@@ -71,6 +71,7 @@ stop() ->
 get_ref(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {get_ref, Key}) of
@@ -88,6 +89,7 @@ get_ref(Id, Key) ->
 get(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {get, Key}) of
@@ -96,7 +98,6 @@ get(Id, Key) ->
                 not_found ->
                     not_found;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -108,6 +109,7 @@ get(Id, Key) ->
 get(Id, Ref, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {get, Ref, Key}) of
@@ -118,7 +120,6 @@ get(Id, Ref, Key) ->
                 not_found ->
                     not_found;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -130,13 +131,13 @@ get(Id, Ref, Key) ->
 put(Id, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {put, Key, Value}) of
                 ok ->
                     ok;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -148,13 +149,13 @@ put(Id, Key, Value) ->
 put(Id, Ref, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {put, Ref, Key, Value}) of
                 ok ->
                     ok;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -166,13 +167,13 @@ put(Id, Ref, Key, Value) ->
 put_begin_tran(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {put_begin_tran, Key}) of
                 {ok, Ref} ->
                     {ok, Ref};
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -184,13 +185,13 @@ put_begin_tran(Id, Key) ->
 put_end_tran(Id, Ref, Key, IsCommit) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {put_end_tran, Ref, Key, IsCommit}) of
                 ok ->
                     ok;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -202,13 +203,13 @@ put_end_tran(Id, Ref, Key, IsCommit) ->
 delete(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
             case catch gen_server:call(Pid, {delete, Key}) of
                 ok ->
                     ok;
                 {_, Cause} ->
-                    %% @TODO - process restart
                     {error, Cause}
             end
     end.
@@ -237,6 +238,23 @@ start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
                   ProcId, DataDir, JournalDir, CacheCapacity, ThresholdLen),
     true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
     start_1(Id - 1, Params).
+
+
+%% @doc Re-launch a process
+%% @private
+restart(Id) ->
+    Options = ?get_options(),
+    CacheCapacity = leo_misc:get_value(?PROP_DISC_CACHE_SIZE, Options),
+    Workers       = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options),
+    DataDir       = leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
+    JournalDir    = leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
+    ThresholdLen  = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
+
+    ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
+    {ok, Pid} = dcerl_server:start_link(ProcId, DataDir, JournalDir,
+                                        erlang:round(CacheCapacity/Workers), ThresholdLen),
+    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    ok.
 
 
 %% @doc Stop Proc(s)

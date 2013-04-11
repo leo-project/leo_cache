@@ -67,11 +67,21 @@ start(Options) ->
                                      ]),
     catch ets:new(?ETS_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
 
-    Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
-    ok = RC:start(Workers1, Options),
+    case IsActiveRAMCache of
+        true ->
+            Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
+            ok = RC:start(Workers1, Options);
+        false ->
+            void
+    end,
 
-    Workers2 = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options),
-    ok = DC:start(Workers2, Options),
+    case IsActiveDiscCache of
+        true ->
+            Workers2 = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options),
+            ok = DC:start(Workers2, Options);
+        false ->
+            void
+    end,
     ok.
 
 

@@ -49,7 +49,17 @@ teardown(_) ->
 
 %% for RAM Cache
 suite_1_(_) ->
-    leo_cache_api:start(),
+    Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
+                {?PROP_RAM_CACHE_WORKERS,  2},
+                {?PROP_RAM_CACHE_SIZE,     100000},
+                {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
+                {?PROP_DISC_CACHE_WORKERS, 0},
+                {?PROP_DISC_CACHE_SIZE,    0},
+                {?PROP_DISC_CACHE_THRESHOLD_LEN, 1001},
+                {?PROP_DISC_CACHE_DATA_DIR,    ?DEF_PROP_DISC_CACHE_DATA_DIR},
+                {?PROP_DISC_CACHE_JOURNAL_DIR, ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
+               ],
+    leo_cache_api:start(Options),
 
     Key1 = <<"photo/image/hawaii-0.png">>,
     Key2 = <<"photo/image/hawaii-1.png">>,
@@ -71,9 +81,9 @@ suite_1_(_) ->
            hits    = H,
            records = R,
            size    = S} = Stats,
-    ?assertEqual(3, G),
+    ?assertEqual(2, G),
     ?assertEqual(2, P),
-    ?assertEqual(2, D),
+    ?assertEqual(1, D),
     ?assertEqual(1, H),
     ?assertEqual(1, R),
     ?assertEqual(true, (S >= 128)),
