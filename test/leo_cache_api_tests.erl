@@ -41,6 +41,7 @@ cache_test_() ->
                           ]]}.
 
 setup() ->
+    os:cmd("rm -rf ./cache"),
     ok.
 
 teardown(_) ->
@@ -52,7 +53,7 @@ suite_1_(_) ->
 
     Key1 = <<"photo/image/hawaii-0.png">>,
     Key2 = <<"photo/image/hawaii-1.png">>,
-    Value = crypto:rand_bytes(1024),
+    Value = crypto:rand_bytes(128),
 
     ok = leo_cache_api:put(Key1, Value),
     ok = leo_cache_api:put(Key2, Value),
@@ -70,17 +71,88 @@ suite_1_(_) ->
            hits    = H,
            records = R,
            size    = S} = Stats,
-    ?assertEqual(2, G),
+    ?assertEqual(3, G),
     ?assertEqual(2, P),
-    ?assertEqual(1, D),
+    ?assertEqual(2, D),
     ?assertEqual(1, H),
     ?assertEqual(1, R),
-    ?assertEqual(true, (S >= 1024)),
+    ?assertEqual(true, (S >= 128)),
     leo_cache_api:stop(),
     ok.
 
 %% for Disc Cache
 suite_2_(_) ->
+    %% Launch Server
+    leo_cache_api:start(),
+
+    %% Test - Put#1
+    Src = init_source(),
+    BinBody = data_block(Src, 1024),
+    BinKey  = <<"test.com/b/path_to_file.jpg">>,
+
+    ok = leo_cache_api:put(BinKey, BinBody),
+
+    {ok, CS} = leo_cache_api:stats(),
+    ?assertEqual(1, CS#stats.put),
+    ?assertEqual(1, CS#stats.records),
+
+    %% Test - Get/Delete
+    {ok, BinBody} = leo_cache_api:get(BinKey),
+    ?assertEqual(1024, byte_size(BinBody)),
+
+    ok = leo_cache_api:delete(BinKey),
+    {ok, CS2} = leo_cache_api:stats(),
+    ?assertEqual(2, CS2#stats.delete),
+    ?assertEqual(0, CS2#stats.records),
+
+    %% Test - PUT#2
+    {ok, Ref} = leo_cache_api:put_begin_tran(BinKey),
+    Chunk = data_block(Src, 1001),
+    ok = leo_cache_api:put(Ref, BinKey, Chunk),
+    ok = leo_cache_api:put(Ref, BinKey, Chunk),
+    ok = leo_cache_api:put(Ref, BinKey, Chunk),
+    ok = leo_cache_api:put_end_tran(Ref, BinKey, true),
+
+    {ok, CS3} = leo_cache_api:stats(),
+    ?assertEqual(2, CS3#stats.put),
+    ?assertEqual(1, CS3#stats.records),
+
+    %% Test - Get#2/Delete#2
+    {ok, Bin2} = leo_cache_api:get(BinKey),
+    ?assertEqual((1001*3), byte_size(Bin2)),
+
+    {ok, Ref2} = leo_cache_api:get_ref(BinKey),
+    ok = get_chunked(Ref2, BinKey, Chunk),
+
+    {ok, CS4} = leo_cache_api:stats(),
+    ?assertEqual(5, CS4#stats.get),
+    ?assertEqual(3, CS4#stats.hits),
+    ?assertEqual(1, CS4#stats.records),
+    ok = leo_cache_api:delete(BinKey),
     ok.
+
+
+%% gen test data
+init_source() ->
+    SourceSz = 1024 * 1024,
+    {SourceSz, crypto:rand_bytes(SourceSz)}.
+
+data_block({SourceSz, Source}, BlockSize) ->
+    case SourceSz - BlockSize > 0 of
+        true ->
+            Offset = random:uniform(SourceSz - BlockSize),
+            <<_:Offset/bytes, Slice:BlockSize/bytes, _Rest/binary>> = Source,
+            Slice;
+        false ->
+            Source
+    end.
+
+get_chunked(Ref, Key, Chunk) ->
+    case leo_cache_api:get(Ref, Key) of
+        {ok, done} ->
+            ok;
+        {ok, Chunk} ->
+            get_chunked(Ref, Key, Chunk)
+    end.
 
 -endif.

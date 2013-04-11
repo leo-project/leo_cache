@@ -55,11 +55,11 @@
                  ok | {error, any()}).
 
 %% @doc Start put transaction for large-object
--callback(put_tran_begin(Id::integer(), Key::binary()|any()) ->
+-callback(put_begin_tran(Id::integer(), Key::binary()|any()) ->
                  ok | {error, any()}).
 
 %% @doc Start put transaction for large-object
--callback(put_tran_end(Id::integer(), Ref::reference(), Key::binary()|any()) ->
+-callback(put_end_tran(Id::integer(), Ref::reference(), Key::binary()|any(), IsCommit::boolean()) ->
                  ok | {error, any()}).
 
 %% @doc Remove an object into server

@@ -31,8 +31,9 @@
 
 %% External API
 -export([start/0, start/1, stop/0,
-         put/2, put/3, get/1, get/2, delete/1, stats/0]).
--export([put_tran_begin/1, put_tran_end/2]).
+         get_ref/1, get/1, get/2,
+         put/2, put/3, put_begin_tran/1, put_end_tran/3,
+         delete/1, stats/0]).
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -53,6 +54,7 @@ start(Options) ->
 
     RAMCacheSize  = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
     DiscCacheSize = leo_misc:get_value(?PROP_DISC_CACHE_SIZE, Options),
+
     IsActiveRAMCache  = (is_integer(RAMCacheSize)  andalso RAMCacheSize  > 0),
     IsActiveDiscCache = (is_integer(DiscCacheSize) andalso DiscCacheSize > 0
                          andalso IsActiveRAMCache == true),
@@ -65,13 +67,11 @@ start(Options) ->
                                      ]),
     catch ets:new(?ETS_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
 
-    Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
-    ok = RC:start(Workers, Options),
+    Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
+    ok = RC:start(Workers1, Options),
 
-    %% @Pending
-    %% DC = leo_misc:get_value(?PROP_DISC_CACHE_MOD, Options),
-    %% ok = DC:start(Workers, Options),
-    ?debugVal(DC),
+    Workers2 = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options),
+    ok = DC:start(Workers2, Options),
     ok.
 
 
@@ -84,11 +84,27 @@ stop() ->
         undefined -> void;
         RC -> RC:stop()
     end,
-    case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
+    case leo_misc:get_value(?PROP_DISC_CACHE_MOD,  Options) of
         undifined -> void;
         DC -> DC:stop()
     end,
     ok.
+
+
+%% @doc Retrieve a reference of cached object (for large-object)
+-spec(get_ref(binary()) ->
+             not_found | {ok, binary()} | {error, any()}).
+get_ref(Key) ->
+    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+    case Active of
+        true ->
+            DC:get_ref(Id, Key);
+        false ->
+            not_found
+    end.
 
 
 %% @doc Retrieve an object from the momory storage
@@ -99,8 +115,8 @@ get(Key) ->
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
                   ram_cache_active  = Active1,
-                  disc_cache_mod    = _DC,
-                  disc_cache_index  = _Id2,
+                  disc_cache_mod    = DC,
+                  disc_cache_index  = Id2,
                   disc_cache_active = Active2} = ?cache_servers(Key, Options),
 
     case Active1 of
@@ -109,8 +125,7 @@ get(Key) ->
                 {ok, Bin} ->
                     {ok, Bin};
                 not_found when Active2 == true ->
-                    %% pending - DC:get(Id2, Key);
-                    not_found;
+                    DC:get(Id2, Key);
                 not_found ->
                     not_found;
                 {error, Cause} ->
@@ -121,13 +136,21 @@ get(Key) ->
     end.
 
 
-%% @doc Retrieve a chunked-object from the disc
+%% @doc Retrieve a chunked-object from disc-cache (for large-object)
 %%
 -spec(get(reference(), binary()) ->
-             {ok, {binary(), boolean()}} | {error, any()}).
-get(_Ref,_Key) ->
-    %% TODO
-    ok.
+             not_found | {ok, {binary(), boolean()}} | {error, any()}).
+get(Ref, Key) ->
+    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+    case Active of
+        true ->
+            DC:get(Id, Ref, Key);
+        false ->
+            not_found
+    end.
 
 
 %% @doc Insert an object into the momory storage
@@ -135,7 +158,7 @@ get(_Ref,_Key) ->
              ok | {error, any()}).
 put(Key, Value) ->
     {ok, Options}  = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
-    MaxRamCacheLen = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
+    ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
                   ram_cache_active  = Active1,
@@ -143,13 +166,13 @@ put(Key, Value) ->
                   disc_cache_index  = Id2,
                   disc_cache_active = Active2} = ?cache_servers(Key, Options),
 
-    case (size(Value) < MaxRamCacheLen) of
+    case (size(Value) < ChunkThresholdLen) of
         true when Active1 == true ->
             RC:put(Id1, Key, Value);
         true ->
             ok;
         false when Active2 == true ->
-            DC:put(Id2, Key);
+            DC:put(Id2, Key, Value);
         false ->
             ok
     end.
@@ -158,9 +181,49 @@ put(Key, Value) ->
 %% @doc Insert a chunked-object into the disc
 -spec(put(reference(), binary(), binary()) ->
              ok | {error, any()}).
-put(_Ref,_Key,_Chunk) ->
-    %% @TODO
-    ok.
+put(Ref, Key, Value) ->
+    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+    case Active of
+        true ->
+            DC:put(Id, Ref, Key, Value);
+        false ->
+            not_found
+    end.
+
+
+%% @doc Insert a chunked-object into the disc
+-spec(put_begin_tran(binary()) ->
+             {ok, reference()} | {error, any()}).
+put_begin_tran(Key) ->
+    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+    case Active of
+        true ->
+            DC:put_begin_tran(Id, Key);
+        false ->
+            {error, ?ERROR_INVALID_OPERATION}
+    end.
+
+
+%% @doc Insert a chunked-object into the disc
+-spec(put_end_tran(reference(), binary(), boolean()) ->
+             {ok, reference()} | {error, any()}).
+put_end_tran(Ref, Key, IsCommit) ->
+    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+    case Active of
+        true ->
+            DC:put_end_tran(Id, Ref, Key, IsCommit);
+        false ->
+            {error, ?ERROR_INVALID_OPERATION}
+    end.
 
 
 %% @doc Remove an object from the momory storage
@@ -171,40 +234,23 @@ delete(Key) ->
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
                   ram_cache_active  = Active1,
-                  disc_cache_mod    = _DC,
-                  disc_cache_index  = _Id2,
+                  disc_cache_mod    = DC,
+                  disc_cache_index  = Id2,
                   disc_cache_active = Active2} = ?cache_servers(Key, Options),
 
     case Active1 of
         true ->
             case RC:delete(Id1, Key) of
                 ok when Active2 == true->
-                    %% pending - DC:delete(Id2, Key)
-                    ok;
+                    DC:delete(Id2, Key);
                 ok ->
                     ok;
                 {error, Cause} ->
                     {error, Cause}
             end;
-        fasel ->
+        false ->
             ok
     end.
-
-
-%% @doc Begin put-transaction
--spec(put_tran_begin(binary()) ->
-             {ok, reference()} | {error, any()}).
-put_tran_begin(_Key) ->
-    %% @TODO
-    ok.
-
-
-%% @doc End put-transaction
--spec(put_tran_end(reference(), boolean()) ->
-             ok | {error, any()}).
-put_tran_end(_Ref,_Key) ->
-    %% @TODO
-    ok.
 
 
 %% @doc Retrieve status of this application
@@ -215,15 +261,33 @@ stats() ->
     {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_active  = Active1,
-                  disc_cache_mod    = _DC,
+                  disc_cache_mod    = DC,
                   disc_cache_active = Active2} = ?cache_servers([], Options),
-
     case Active1 of
         true ->
             case RC:stats() of
-                {ok, Stats} when Active2 == true->
-                    %% pending - DC:stats(Id2, Key)
-                    {ok, Stats};
+                {ok, #stats{get     = G1,
+                            put     = P1,
+                            delete  = D1,
+                            hits    = H1,
+                            records = R1,
+                            size    = S1} = Stats} when Active2 == true->
+                    case DC:stats() of
+                        {ok, #stats{get     = G2,
+                                    put     = P2,
+                                    delete  = D2,
+                                    hits    = H2,
+                                    records = R2,
+                                    size    = S2}} ->
+                            {ok, #stats{get     = G1+G2,
+                                        put     = P1+P2,
+                                        delete  = D1+D2,
+                                        hits    = H1+H2,
+                                        records = R1+R2,
+                                        size    = S1+S2}};
+                        _ ->
+                            {ok, Stats}
+                    end;
                 {ok, Stats} ->
                     {ok, Stats};
                 {error, Cause} ->
@@ -237,6 +301,3 @@ stats() ->
 %%====================================================================
 %% INNER FUNCTIONS
 %%====================================================================
-%% @doc Retrieve a srever id
-%% @private
-

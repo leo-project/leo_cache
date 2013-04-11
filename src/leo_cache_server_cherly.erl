@@ -35,7 +35,7 @@
 %% External API
 -export([start/2, stop/0,
          get_ref/2, get/2, get/3,
-         put/3, put/4, put_tran_begin/2, put_tran_end/3,
+         put/3, put/4, put_begin_tran/2, put_end_tran/4,
          delete/2, stats/0]).
 
 -define(ID_PREFIX, "cherly_").
@@ -48,9 +48,8 @@
 -spec(start(integer(), list(tuple())) ->
              ok | {error, any()}).
 start(Workers, Options) ->
-    RamCacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
-    ok = leo_misc:set_env(leo_cache, ?PROP_RAM_CACHE_ACTIVE, (RamCacheCapacity > 0)),
-    ok = start_1(Workers, erlang:round(RamCacheCapacity/Workers)),
+    CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
+    ok = start_1(Workers, erlang:round(CacheCapacity/Workers)),
     ok.
 
 
@@ -73,7 +72,7 @@ get_ref(_Id, _Key) ->
 -spec(get(integer(), binary()) ->
              not_found | {ok, binary()} | {error, any()}).
 get(Id, Key) ->
-    case get_handler(Id) of
+    case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -100,7 +99,7 @@ get(_Id,_Ref,_Key) ->
 -spec(put(integer(), binary(), binary()) ->
              ok | {error, any()}).
 put(Id, Key, Value) ->
-    case get_handler(Id) of
+    case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -122,16 +121,16 @@ put(_Id,_Ref,_Key,_Value) ->
 
 
 %% @doc Start put-transaction for large-object (for large-object)
--spec(put_tran_begin(integer(), binary()|any()) ->
+-spec(put_begin_tran(integer(), binary()|any()) ->
              ok | {error, any()}).
-put_tran_begin(_Id,_Key) ->
+put_begin_tran(_Id,_Key) ->
     {ok, undefine}.
 
 
 %% @doc End put-transaction for large-object (for large-object)
--spec(put_tran_end(integer(), reference(), binary()|any()) ->
+-spec(put_end_tran(integer(), reference(), binary()|any(), boolean()) ->
              ok | {error, any()}).
-put_tran_end(_Id,_Ref,_Key) ->
+put_end_tran(_Id,_Ref,_Key,_IdCommit) ->
     ok.
 
 
@@ -139,7 +138,7 @@ put_tran_end(_Id,_Ref,_Key) ->
 -spec(delete(integer(), binary()) ->
              ok | {error, any()}).
 delete( Id, Key) ->
-    case get_handler(Id) of
+    case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -164,30 +163,17 @@ stats() ->
 %%====================================================================
 %% INNER FUNCTIONS
 %%====================================================================
-%% @doc Get a handler
-%% @private
--spec(get_handler(integer()) ->
-             reference() | undefine).
-get_handler(Id) ->
-    case ets:lookup(?ETS_CACHE_HANDLERS, ?gen_proc_id(Id, ?ID_PREFIX)) of
-        [{_,Handler}|_] ->
-            Handler;
-        _ ->
-            undefined
-    end.
-
-
 %% @doc Start Proc(s)
 %% @private
 -spec(start_1(integer(), integer()) ->
              ok).
 start_1(0, _) ->
     ok;
-start_1(Id, RamCacheCapacity) ->
+start_1(Id, CacheCapacity) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = cherly_server:start_link(ProcId, RamCacheCapacity),
+    {ok, Pid} = cherly_server:start_link(ProcId, CacheCapacity),
     true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
-    start_1(Id - 1, RamCacheCapacity).
+    start_1(Id - 1, CacheCapacity).
 
 
 %% @doc Stop Proc(s)
@@ -195,7 +181,7 @@ start_1(Id, RamCacheCapacity) ->
 stop_1(0) ->
     ok;
 stop_1(Id) ->
-    case get_handler(Id) of
+    case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
             void;
         Pid ->
@@ -204,6 +190,8 @@ stop_1(Id) ->
     stop_1(Id - 1).
 
 
+%% @doc Retrieve and summarize stats
+%% @private
 stats_1(0, Acc) ->
     {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
                           {'delete', D1},{'hits',H1},
@@ -218,7 +206,7 @@ stats_1(0, Acc) ->
                                     size    = S1 + S2}
                      end, #stats{}, Acc)};
 stats_1(Id, Acc) ->
-    case get_handler(Id) of
+    case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
             {error, ?ERROR_COULD_NOT_GET_STATS};
         Pid ->

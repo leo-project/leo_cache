@@ -41,25 +41,54 @@
 -define(PROP_DISC_CACHE_MOD,     'disc_cache_mod').
 -define(PROP_DISC_CACHE_SIZE,    'disc_cache_size').
 -define(PROP_DISC_CACHE_ACTIVE,  'disc_cache_active').
+-define(PROP_DISC_CACHE_THRESHOLD_LEN, 'disc_cache_threshold_len').
+-define(PROP_DISC_CACHE_DATA_DIR,    'disc_cache_data_dir').
+-define(PROP_DISC_CACHE_JOURNAL_DIR, 'disc_cache_journal_dir').
 
 -define(DEF_PROP_RAM_CACHE,  'cherly').
 -define(DEF_PROP_DISC_CACHE, 'dcerl').
 -define(DEF_PROP_RAM_CACHE_WORKERS,  8).
 -define(DEF_PROP_DISC_CACHE_WORKERS, 4).
--define(DEF_PROP_RAM_CACHE_SIZE,  100000).
--define(DEF_PROP_DISC_CACHE_SIZE, 100000).
+-define(DEF_PROP_RAM_CACHE_SIZE,  128000000). % about 128MB
+-define(DEF_PROP_DISC_CACHE_SIZE, 128000000). % about 128MB
+-define(DEF_PROP_DISC_CACHE_THRESHOLD_LEN, 1000000).
+-define(DEF_PROP_DISC_CACHE_DATA_DIR,    "./cache/data/").
+-define(DEF_PROP_DISC_CACHE_JOURNAL_DIR, "./cache/journal/").
+
+
+-ifdef(TEST).
+-define(DEF_OPTIONS, [
+                      {?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
+                      {?PROP_RAM_CACHE_WORKERS,  2},
+                      {?PROP_RAM_CACHE_SIZE,     100000},
+
+                      {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
+                      {?PROP_DISC_CACHE_WORKERS, 2},
+                      {?PROP_DISC_CACHE_SIZE,    100000},
+                      {?PROP_DISC_CACHE_THRESHOLD_LEN, 1001},
+                      {?PROP_DISC_CACHE_DATA_DIR,      ?DEF_PROP_DISC_CACHE_DATA_DIR},
+                      {?PROP_DISC_CACHE_JOURNAL_DIR,   ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
+                     ]).
+-else.
 -define(DEF_OPTIONS, [
                       {?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
                       {?PROP_RAM_CACHE_WORKERS,  ?DEF_PROP_RAM_CACHE_WORKERS},
                       {?PROP_RAM_CACHE_SIZE,     ?DEF_PROP_RAM_CACHE_SIZE},
+
                       {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
-                      {?PROP_DISC_CACHE_WORKERS, ?DEF_PROP_RAM_CACHE_WORKERS},
-                      {?PROP_DISC_CACHE_SIZE,    ?DEF_PROP_DISC_CACHE_SIZE}
+                      {?PROP_DISC_CACHE_WORKERS, ?DEF_PROP_DISC_CACHE_WORKERS},
+                      {?PROP_DISC_CACHE_SIZE,    ?DEF_PROP_DISC_CACHE_SIZE},
+                      {?PROP_DISC_CACHE_THRESHOLD_LEN, ?DEF_PROP_DISC_CACHE_THRESHOLD_LEN},
+                      {?PROP_DISC_CACHE_DATA_DIR,      ?DEF_PROP_DISC_CACHE_DATA_DIR},
+                      {?PROP_DISC_CACHE_JOURNAL_DIR,   ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
                      ]).
+-endif.
+
 
 -define(ERROR_RAM_CACHE_INACTIVE,  "RAM cache inactive").
 -define(ERROR_DISC_CACHE_INACTIVE, "Disc cache inactive").
 -define(ERROR_COULD_NOT_GET_STATS, "Could not get stats").
+-define(ERROR_INVALID_OPERATION,   "Invalid operation").
 
 -record(cache_server, {ram_cache_index   :: integer(),
                        ram_cache_mod     :: atom(),
@@ -78,18 +107,28 @@
                 }).
 
 %% Macros
--define(get_options(), case leo_misc:get_env(leo_cache, ?PROP_OPTIONS) of
-                           {ok, _V} -> _V;
-                           _ -> []
-                       end).
+%%
+%% Retrieve options
+-define(get_options(),
+        case leo_misc:get_env(leo_cache, ?PROP_OPTIONS) of
+            {ok, _V} -> _V;
+            _ -> []
+        end).
 
--define(get_proc_index(_W,_K1,_O1), erlang:phash2(_K1, leo_misc:get_value(_W, _O1))).
--define(get_workers(), case leo_misc:get_env(leo_cache, ?PROP_OPTIONS) of
-                           {ok, Options} ->
-                               leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options);
-                           _ ->
-                               0
-                       end).
+%% Retrieve process index
+-define(get_proc_index(_W,_K1,_O1),
+        erlang:phash2(_K1, leo_misc:get_value(_W, _O1))+1).
+
+%% Retrieve num of workers
+-define(get_workers(),
+        case leo_misc:get_env(leo_cache, ?PROP_OPTIONS) of
+            {ok, Options} ->
+                leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options);
+            _ ->
+                0
+        end).
+
+%% Retrieve cache-server info
 -define(cache_servers(_K2,_O2),
         #cache_server{ram_cache_index   = ?get_proc_index(?PROP_RAM_CACHE_WORKERS,   _K2,_O2),
                       ram_cache_mod     = leo_misc:get_value(?PROP_RAM_CACHE_MOD,    _O2),
@@ -98,6 +137,20 @@
                       disc_cache_mod    = leo_misc:get_value(?PROP_DISC_CACHE_MOD,   _O2),
                       disc_cache_active = leo_misc:get_value(?PROP_DISC_CACHE_ACTIVE,_O2)
                      }).
--define(gen_proc_id(_I, _P), list_to_atom(lists:append([_P, integer_to_list(_I)]))).
--define(gen_mod_name(_M),    list_to_atom(lists:append(["leo_cache_server_", atom_to_list(_M)]))).
 
+%% Generate a process-id
+-define(gen_proc_id(_I, _P),
+        list_to_atom(lists:append([_P, integer_to_list(_I)]))).
+
+%% Generate a module-name
+-define(gen_mod_name(_M),
+        list_to_atom(lists:append(["leo_cache_server_", atom_to_list(_M)]))).
+
+%% Retrieve a handler
+-define(get_handler(_Id, _Prefix),
+        case ets:lookup(?ETS_CACHE_HANDLERS, ?gen_proc_id(_Id, _Prefix)) of
+            [{_,Handler}|_] ->
+                Handler;
+            _ ->
+                undefined
+        end).

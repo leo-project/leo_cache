@@ -19,7 +19,7 @@
 %% under the License.
 %%
 %% ---------------------------------------------------------------------
-%% Leo Cache
+%% Leo Cache - [D]isc [C]ache [Erl]ng
 %% @doc
 %% @end
 %%======================================================================
@@ -29,13 +29,16 @@
 -behaviour(leo_cache_behaviour).
 
 -include("leo_cache.hrl").
+-include_lib("dcerl/include/dcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start/2, stop/0,
          get_ref/2, get/2, get/3,
-         put/3, put/4, put_tran_begin/2, put_tran_end/3,
+         put/3, put/4, put_begin_tran/2, put_end_tran/4,
          delete/2, stats/0]).
+
+-define(ID_PREFIX, "dcerl_").
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -44,7 +47,13 @@
 %%
 -spec(start(integer(), list(tuple())) ->
              ok | {error, any()}).
-start(_Workers,_Options) ->
+start(Workers, Options) ->
+    CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
+    Params = [leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
+              leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
+              erlang:round(CacheCapacity/Workers),
+              leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options)],
+    ok = start_1(Workers, Params),
     ok.
 
 
@@ -52,64 +61,157 @@ start(_Workers,_Options) ->
 %%
 -spec(stop() -> ok).
 stop() ->
-    ok.
+    stop_1(?get_workers()).
 
 
 %% @doc Retrieve a reference of cached object (for large-object)
 %%
 -spec(get_ref(integer(), binary()) ->
              {ok, reference()} | {error, undefined}).
-get_ref(_Id, _Key) ->
-    {error, undefined}.
+get_ref(Id, Key) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {get_ref, Key}) of
+                {ok, Ref} ->
+                    {ok, Ref};
+                {_, Cause} ->
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Retrieve an object from cache-server
 -spec(get(integer(), binary()) ->
              not_found | {ok, binary()} | {error, any()}).
-get(_Id,_Key) ->
-    ok.
+get(Id, Key) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {get, Key}) of
+                {ok, Value} ->
+                    {ok, Value};
+                not_found ->
+                    not_found;
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Retrieve an object from cache-server (for large-object)
 -spec(get(integer(), reference(), binary()) ->
              not_found | {ok, binary()} | {error, any()}).
-get(_Id,_Ref,_Key) ->
-    not_found.
+get(Id, Ref, Key) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {get, Ref, Key}) of
+                {ok, {Value, false}} ->
+                    {ok, Value};
+                {ok, {<<>>, true}} ->
+                    {ok, done};
+                not_found ->
+                    not_found;
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Insert an object into cache-serverx
 -spec(put(integer(), binary(), binary()) ->
              ok | {error, any()}).
-put(_Id,_Key,_Value) ->
-    ok.
+put(Id, Key, Value) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {put, Key, Value}) of
+                ok ->
+                    ok;
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Insert an object into the cache-server (for large-object)
 -spec(put(integer(), reference(), binary()|any(), binary()|any()) ->
              ok | {error, any()}).
-put(_Id,_Ref,_Key,_Value) ->
-    ok.
+put(Id, Ref, Key, Value) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {put, Ref, Key, Value}) of
+                ok ->
+                    ok;
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Start put-transaction for large-object (for large-object)
--spec(put_tran_begin(integer(), binary()|any()) ->
+-spec(put_begin_tran(integer(), binary()|any()) ->
              ok | {error, any()}).
-put_tran_begin(_Id,_Key) ->
-    {ok, undefine}.
+put_begin_tran(Id, Key) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {put_begin_tran, Key}) of
+                {ok, Ref} ->
+                    {ok, Ref};
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc End put-transaction for large-object (for large-object)
--spec(put_tran_end(integer(), reference(), binary()|any()) ->
+-spec(put_end_tran(integer(), reference(), binary()|any(), boolean()) ->
              ok | {error, any()}).
-put_tran_end(_Id,_Ref,_Key) ->
-    ok.
+put_end_tran(Id, Ref, Key, IsCommit) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {put_end_tran, Ref, Key, IsCommit}) of
+                ok ->
+                    ok;
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Remove an object from cache-server
 -spec(delete(integer(), binary()) ->
              ok | {error, any()}).
-delete(_Id,_Key) ->
-    ok.
+delete(Id, Key) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case catch gen_server:call(Pid, {delete, Key}) of
+                ok ->
+                    ok;
+                {_, Cause} ->
+                    %% @TODO - process restart
+                    {error, Cause}
+            end
+    end.
 
 
 %% @doc Retrieve status of this application
@@ -117,8 +219,71 @@ delete(_Id,_Key) ->
 -spec(stats() ->
              {ok, any()}).
 stats() ->
-    ok.
+    stats_1(?get_workers(), []).
+
 
 %%====================================================================
 %% INNER FUNCTIONS
 %%====================================================================
+%% @doc Start Proc(s)
+%% @private
+-spec(start_1(integer(), integer()) ->
+             ok).
+start_1(0, _) ->
+    ok;
+start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
+    ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
+    {ok, Pid} = dcerl_server:start_link(
+                  ProcId, DataDir, JournalDir, CacheCapacity, ThresholdLen),
+    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    start_1(Id - 1, Params).
+
+
+%% @doc Stop Proc(s)
+%% @private
+stop_1(0) ->
+    ok;
+stop_1(Id) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            void;
+        Pid ->
+            gen_server:cast(Pid, stop)
+    end,
+    stop_1(Id - 1).
+
+
+%% @doc Retrieve and summarize stats
+%% @private
+stats_1(0, Acc) ->
+    {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
+                          {'delete', D1},{'hits',H1},
+                          {'files',  R1},{'size',S1}], #stats{get=G2, put=P2,
+                                                              delete=D2, hits=H2,
+                                                              records=R2, size=S2}) ->
+                             #stats{get     = G1 + G2,
+                                    put     = P1 + P2,
+                                    delete  = D1 + D2,
+                                    hits    = H1 + H2,
+                                    records = R1 + R2,
+                                    size    = S1 + S2}
+                     end, #stats{}, Acc)};
+stats_1(Id, Acc) ->
+    case ?get_handler(Id, ?ID_PREFIX) of
+        undefined ->
+            {error, ?ERROR_COULD_NOT_GET_STATS};
+        Pid ->
+            case catch gen_server:call(Pid, {stats}) of
+                {ok, #cache_stats{gets = Gets,
+                                  puts = Puts,
+                                  dels = Dels,
+                                  hits = Hits,
+                                  records = Recs,
+                                  cached_size = Size}} ->
+                    stats_1(Id - 1, [[{'get', Gets},{'put', Puts},
+                                      {'delete', Dels},{'hits',Hits},
+                                      {'files',Recs},{'size',Size}]|Acc]);
+                _ ->
+                    {error, ?ERROR_COULD_NOT_GET_STATS}
+            end
+    end.
