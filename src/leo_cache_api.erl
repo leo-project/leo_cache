@@ -42,14 +42,7 @@
 -spec(start() ->
              ok | {error, any()}).
 start() ->
-    start([
-           {?PROP_RAM_CACHE_NAME,     'cherly'},
-           {?PROP_RAM_CACHE_WORKERS,  3},
-           {?PROP_RAM_CACHE_SIZE,     1000000},
-           {?PROP_DISC_CACHE_NAME,    'dcerl'},
-           {?PROP_DISC_CACHE_WORKERS, 3},
-           {?PROP_DISC_CACHE_SIZE,    1000000}
-          ]).
+    start(?DEF_OPTIONS).
 
 -spec(start(list(tuple())) ->
              ok | {error, any()}).
@@ -57,8 +50,19 @@ start(Options) ->
     ok = leo_misc:init_env(),
     RC = ?gen_mod_name(leo_misc:get_value(?PROP_RAM_CACHE_NAME,  Options)),
     DC = ?gen_mod_name(leo_misc:get_value(?PROP_DISC_CACHE_NAME, Options)),
-    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
-                                                                {?PROP_DISC_CACHE_MOD, DC}]),
+
+    RAMCacheSize  = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
+    DiscCacheSize = leo_misc:get_value(?PROP_DISC_CACHE_SIZE, Options),
+    IsActiveRAMCache  = (is_integer(RAMCacheSize)  andalso RAMCacheSize  > 0),
+    IsActiveDiscCache = (is_integer(DiscCacheSize) andalso DiscCacheSize > 0
+                         andalso IsActiveRAMCache == true),
+
+    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS,
+                          Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
+                                      {?PROP_DISC_CACHE_MOD, DC},
+                                      {?PROP_RAM_CACHE_ACTIVE,  IsActiveRAMCache},
+                                      {?PROP_DISC_CACHE_ACTIVE, IsActiveDiscCache}
+                                     ]),
     catch ets:new(?ETS_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
 
     Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
@@ -75,6 +79,15 @@ start(Options) ->
 %%
 -spec(stop() -> ok).
 stop() ->
+    Options = ?get_options(),
+    case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
+        undefined -> void;
+        RC -> RC:stop()
+    end,
+    case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
+        undifined -> void;
+        DC -> DC:stop()
+    end,
     ok.
 
 
@@ -83,19 +96,28 @@ stop() ->
              not_found | {ok, binary()} | {error, any()}).
 get(Key) ->
     {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
-    #cache_server{ram_cache_mod    = RC,
-                  ram_cache_index  = Id1,
-                  disc_cache_mod   = _DC,
-                  disc_cache_index = _Id2} = ?cache_servers(Key, Options),
+    #cache_server{ram_cache_mod     = RC,
+                  ram_cache_index   = Id1,
+                  ram_cache_active  = Active1,
+                  disc_cache_mod    = _DC,
+                  disc_cache_index  = _Id2,
+                  disc_cache_active = Active2} = ?cache_servers(Key, Options),
 
-    case RC:get(Id1, Key) of
-        {ok, Bin} ->
-            {ok, Bin};
-        not_found ->
-            %% pending - DC:get(Id2, Key);
-            not_found;
-        {error, Cause} ->
-            {error, Cause}
+    case Active1 of
+        true ->
+            case RC:get(Id1, Key) of
+                {ok, Bin} ->
+                    {ok, Bin};
+                not_found when Active2 == true ->
+                    %% pending - DC:get(Id2, Key);
+                    not_found;
+                not_found ->
+                    not_found;
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        false ->
+            not_found
     end.
 
 
@@ -114,16 +136,22 @@ get(_Ref,_Key) ->
 put(Key, Value) ->
     {ok, Options}  = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     MaxRamCacheLen = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
-    #cache_server{ram_cache_mod    = RC,
-                  ram_cache_index  = Id1,
-                  disc_cache_mod   = DC,
-                  disc_cache_index = Id2} = ?cache_servers(Key, Options),
+    #cache_server{ram_cache_mod     = RC,
+                  ram_cache_index   = Id1,
+                  ram_cache_active  = Active1,
+                  disc_cache_mod    = DC,
+                  disc_cache_index  = Id2,
+                  disc_cache_active = Active2} = ?cache_servers(Key, Options),
 
     case (size(Value) < MaxRamCacheLen) of
-        true ->
+        true when Active1 == true ->
             RC:put(Id1, Key, Value);
+        true ->
+            ok;
+        false when Active2 == true ->
+            DC:put(Id2, Key);
         false ->
-            DC:put(Id2, Key)
+            ok
     end.
 
 
@@ -140,17 +168,26 @@ put(_Ref,_Key,_Chunk) ->
              ok | {error, any()}).
 delete(Key) ->
     {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
-    #cache_server{ram_cache_mod    = RC,
-                  ram_cache_index  = Id1,
-                  disc_cache_mod   = _DC,
-                  disc_cache_index = _Id2} = ?cache_servers(Key, Options),
+    #cache_server{ram_cache_mod     = RC,
+                  ram_cache_index   = Id1,
+                  ram_cache_active  = Active1,
+                  disc_cache_mod    = _DC,
+                  disc_cache_index  = _Id2,
+                  disc_cache_active = Active2} = ?cache_servers(Key, Options),
 
-    case RC:delete(Id1, Key) of
-        ok ->
-            %% pending - DC:delete(Id2, Key)
-            ok;
-        {error, Cause} ->
-            {error, Cause}
+    case Active1 of
+        true ->
+            case RC:delete(Id1, Key) of
+                ok when Active2 == true->
+                    %% pending - DC:delete(Id2, Key)
+                    ok;
+                ok ->
+                    ok;
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        fasel ->
+            ok
     end.
 
 
@@ -175,8 +212,26 @@ put_tran_end(_Ref,_Key) ->
 -spec(stats() ->
              {ok, any()}).
 stats() ->
-    %% TODO
-    ok.
+    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
+    #cache_server{ram_cache_mod     = RC,
+                  ram_cache_active  = Active1,
+                  disc_cache_mod    = _DC,
+                  disc_cache_active = Active2} = ?cache_servers([], Options),
+
+    case Active1 of
+        true ->
+            case RC:stats() of
+                {ok, Stats} when Active2 == true->
+                    %% pending - DC:stats(Id2, Key)
+                    {ok, Stats};
+                {ok, Stats} ->
+                    {ok, Stats};
+                {error, Cause} ->
+                    {error, Cause}
+            end;
+        false ->
+            ok
+    end.
 
 
 %%====================================================================

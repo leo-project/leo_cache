@@ -50,16 +50,33 @@ teardown(_) ->
 suite_1_(_) ->
     leo_cache_api:start(),
 
-    Key = <<"photo/image/hawaii-0.png">>,
+    Key1 = <<"photo/image/hawaii-0.png">>,
+    Key2 = <<"photo/image/hawaii-1.png">>,
     Value = crypto:rand_bytes(1024),
 
-    ok = leo_cache_api:put(Key, Value),
+    ok = leo_cache_api:put(Key1, Value),
+    ok = leo_cache_api:put(Key2, Value),
 
-    {ok, Value1} = leo_cache_api:get(Key),
+    {ok, Value1} = leo_cache_api:get(Key1),
     ?assertEqual(Value, Value1),
 
-    ok = leo_cache_api:delete(Key),
-    not_found = leo_cache_api:get(Key),
+    ok = leo_cache_api:delete(Key1),
+    not_found = leo_cache_api:get(Key1),
+
+    {ok, Stats} = leo_cache_api:stats(),
+    #stats{get     = G,
+           put     = P,
+           delete  = D,
+           hits    = H,
+           records = R,
+           size    = S} = Stats,
+    ?assertEqual(2, G),
+    ?assertEqual(2, P),
+    ?assertEqual(1, D),
+    ?assertEqual(1, H),
+    ?assertEqual(1, R),
+    ?assertEqual(true, (S >= 1024)),
+    leo_cache_api:stop(),
     ok.
 
 %% for Disc Cache

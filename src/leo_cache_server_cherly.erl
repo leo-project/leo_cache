@@ -29,6 +29,7 @@
 -behaviour(leo_cache_behaviour).
 
 -include("leo_cache.hrl").
+-include_lib("cherly/include/cherly.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
@@ -57,7 +58,7 @@ start(Workers, Options) ->
 %%
 -spec(stop() -> ok).
 stop() ->
-    ok.
+    stop_1(?get_workers()).
 
 
 %% @doc Retrieve a reference of cached object (for large-object)
@@ -157,42 +158,82 @@ delete( Id, Key) ->
 -spec(stats() ->
              {ok, any()}).
 stats() ->
-    %% @TODO - summarize counter
-    ok.
+    stats_1(?get_workers(), []).
 
 
 %%====================================================================
 %% INNER FUNCTIONS
 %%====================================================================
-%% @doc Generate Id
-%%
--spec(gen_id(integer()) ->
-             atom()).
-gen_id(Id) ->
-    ?gen_proc_id(Id, ?ID_PREFIX).
-
-
 %% @doc Get a handler
-%%
+%% @private
 -spec(get_handler(integer()) ->
              reference() | undefine).
 get_handler(Id) ->
-    case ets:lookup(?ETS_CACHE_HANDLERS, gen_id(Id)) of
+    case ets:lookup(?ETS_CACHE_HANDLERS, ?gen_proc_id(Id, ?ID_PREFIX)) of
         [{_,Handler}|_] ->
             Handler;
         _ ->
             undefined
     end.
 
+
 %% @doc Start Proc(s)
-%%
+%% @private
 -spec(start_1(integer(), integer()) ->
              ok).
 start_1(0, _) ->
     ok;
 start_1(Id, RamCacheCapacity) ->
-    ProcId = gen_id(Id),
+    ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     {ok, Pid} = cherly_server:start_link(ProcId, RamCacheCapacity),
     true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
     start_1(Id - 1, RamCacheCapacity).
+
+
+%% @doc Stop Proc(s)
+%% @private
+stop_1(0) ->
+    ok;
+stop_1(Id) ->
+    case get_handler(Id) of
+        undefined ->
+            void;
+        Pid ->
+            gen_server:cast(Pid, stop)
+    end,
+    stop_1(Id - 1).
+
+
+stats_1(0, Acc) ->
+    {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
+                          {'delete', D1},{'hits',H1},
+                          {'files',  R1},{'size',S1}], #stats{get=G2, put=P2,
+                                                              delete=D2, hits=H2,
+                                                              records=R2, size=S2}) ->
+                             #stats{get     = G1 + G2,
+                                    put     = P1 + P2,
+                                    delete  = D1 + D2,
+                                    hits    = H1 + H2,
+                                    records = R1 + R2,
+                                    size    = S1 + S2}
+                     end, #stats{}, Acc)};
+stats_1(Id, Acc) ->
+    case get_handler(Id) of
+        undefined ->
+            {error, ?ERROR_COULD_NOT_GET_STATS};
+        Pid ->
+            case catch gen_server:call(Pid, {stats}) of
+                {ok, #cache_stats{gets = Gets,
+                                  puts = Puts,
+                                  dels = Dels,
+                                  hits = Hits,
+                                  records = Recs,
+                                  cached_size = Size}} ->
+                    stats_1(Id - 1, [[{'get', Gets},{'put', Puts},
+                                      {'delete', Dels},{'hits',Hits},
+                                      {'files',Recs},{'size',Size}]|Acc]);
+                _ ->
+                    {error, ?ERROR_COULD_NOT_GET_STATS}
+            end
+    end.
 
