@@ -7,6 +7,8 @@ CHANGELOG
 * Improved
     * Output error log when crach cache server
     * Implemented test suit
+* Fixed bugs
+    * Not supported pattern of omitted "slash" from a path
 
 
 0.4.0 (Apr 11, 2013)
