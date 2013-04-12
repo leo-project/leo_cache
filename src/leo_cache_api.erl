@@ -59,26 +59,27 @@ start(Options) ->
     IsActiveDiscCache = (is_integer(DiscCacheSize) andalso DiscCacheSize > 0
                          andalso IsActiveRAMCache == true),
 
-    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS,
-                          Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
-                                      {?PROP_DISC_CACHE_MOD, DC},
-                                      {?PROP_RAM_CACHE_ACTIVE,  IsActiveRAMCache},
-                                      {?PROP_DISC_CACHE_ACTIVE, IsActiveDiscCache}
-                                     ]),
+    Options1 = Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
+                           {?PROP_DISC_CACHE_MOD, DC},
+                           {?PROP_RAM_CACHE_ACTIVE,  IsActiveRAMCache},
+                           {?PROP_DISC_CACHE_ACTIVE, IsActiveDiscCache}
+                          ],
+
+    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options1),
     catch ets:new(?ETS_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
 
     case IsActiveRAMCache of
         true ->
-            Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
-            ok = RC:start(Workers1, Options);
+            Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options1),
+            ok = RC:start(Workers1, Options1);
         false ->
             void
     end,
 
     case IsActiveDiscCache of
         true ->
-            Workers2 = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options),
-            ok = DC:start(Workers2, Options);
+            Workers2 = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options1),
+            ok = DC:start(Workers2, Options1);
         false ->
             void
     end,

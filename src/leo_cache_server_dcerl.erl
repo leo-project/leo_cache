@@ -39,6 +39,7 @@
          delete/2, stats/0]).
 
 -define(ID_PREFIX, "dcerl_").
+-define(STR_SLASH, "/").
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -49,10 +50,37 @@
              ok | {error, any()}).
 start(Workers, Options) ->
     CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
-    Params = [leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
-              leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
+    DataDir       = leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
+    JournalDir    = leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
+    ThresholdLen  = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
+
+    {DataDir2, Options2} =
+        case (string:rstr(DataDir, ?STR_SLASH) == length(DataDir)) of
+            true ->
+                {DataDir, Options};
+            false ->
+                DataDir1 = lists:append([DataDir, ?STR_SLASH]),
+                Options1 = [{?PROP_DISC_CACHE_DATA_DIR, DataDir1}
+                            |lists:delete({?PROP_DISC_CACHE_DATA_DIR, DataDir}, Options)],
+                {DataDir1, Options1}
+        end,
+
+    {JournalDir2, Options4} =
+        case (string:rstr(JournalDir, ?STR_SLASH) == length(JournalDir)) of
+            true ->
+                {JournalDir, Options2};
+            false ->
+                JournalDir1 = lists:append([JournalDir, ?STR_SLASH]),
+                Options3 = [{?PROP_DISC_CACHE_JOURNAL_DIR, JournalDir1}
+                            |lists:delete({?PROP_DISC_CACHE_JOURNAL_DIR, JournalDir}, Options2)],
+                {JournalDir1, Options3}
+        end,
+
+    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options4),
+    Params = [DataDir2,
+              JournalDir2,
               erlang:round(CacheCapacity/Workers),
-              leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options)],
+              ThresholdLen],
     ok = start_1(Workers, Params),
     ok.
 
@@ -71,6 +99,7 @@ stop() ->
 get_ref(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get_ref/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -89,6 +118,7 @@ get_ref(Id, Key) ->
 get(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -109,6 +139,7 @@ get(Id, Key) ->
 get(Id, Ref, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -131,6 +162,7 @@ get(Id, Ref, Key) ->
 put(Id, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -149,6 +181,7 @@ put(Id, Key, Value) ->
 put(Id, Ref, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -167,6 +200,7 @@ put(Id, Ref, Key, Value) ->
 put_begin_tran(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put_begin_tran/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -185,6 +219,7 @@ put_begin_tran(Id, Key) ->
 put_end_tran(Id, Ref, Key, IsCommit) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put_end_tran/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -203,6 +238,7 @@ put_end_tran(Id, Ref, Key, IsCommit) ->
 delete(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "delete/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->

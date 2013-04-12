@@ -74,6 +74,7 @@ get_ref(_Id, _Key) ->
 get(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -101,6 +102,7 @@ get(_Id,_Ref,_Key) ->
 put(Id, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -137,9 +139,10 @@ put_end_tran(_Id,_Ref,_Key,_IdCommit) ->
 %% @doc Remove an object from the momory storage
 -spec(delete(integer(), binary()) ->
              ok | {error, any()}).
-delete( Id, Key) ->
+delete(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "delete/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->

@@ -47,13 +47,13 @@
 
 -define(DEF_PROP_RAM_CACHE,  'cherly').
 -define(DEF_PROP_DISC_CACHE, 'dcerl').
--define(DEF_PROP_RAM_CACHE_WORKERS,  8).
--define(DEF_PROP_DISC_CACHE_WORKERS, 4).
+-define(DEF_PROP_RAM_CACHE_WORKERS,  32).
+-define(DEF_PROP_DISC_CACHE_WORKERS, 16).
 -define(DEF_PROP_RAM_CACHE_SIZE,  128000000). % about 128MB
 -define(DEF_PROP_DISC_CACHE_SIZE, 128000000). % about 128MB
 -define(DEF_PROP_DISC_CACHE_THRESHOLD_LEN, 1000000).
--define(DEF_PROP_DISC_CACHE_DATA_DIR,    "./cache/data/").
--define(DEF_PROP_DISC_CACHE_JOURNAL_DIR, "./cache/journal/").
+-define(DEF_PROP_DISC_CACHE_DATA_DIR,    "./cache/data").
+-define(DEF_PROP_DISC_CACHE_JOURNAL_DIR, "./cache/journal").
 
 
 -ifdef(TEST).
@@ -89,6 +89,7 @@
 -define(ERROR_DISC_CACHE_INACTIVE, "Disc cache inactive").
 -define(ERROR_COULD_NOT_GET_STATS, "Could not get stats").
 -define(ERROR_INVALID_OPERATION,   "Invalid operation").
+-define(ERROR_MAYBE_CRASH_SERVER,  "Maybe crach server").
 
 -record(cache_server, {ram_cache_index   :: integer(),
                        ram_cache_mod     :: atom(),
@@ -158,3 +159,10 @@
             _ ->
                 undefined
         end).
+
+-define(error(_M,_F,_C), error_logger:error_msg("~p,~p,~p,~p~n",
+                                                [{module, _M}, {function, _F},
+                                                 {line, ?LINE}, {body, _C}])).
+-define(warn(_M,_F,_C),  error_logger:warning_msg("~p,~p,~p,~p~n",
+                                                  [{module, _M}, {function, _F},
+                                                   {line, ?LINE}, {body, _C}])).
