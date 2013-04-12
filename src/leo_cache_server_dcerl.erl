@@ -99,6 +99,7 @@ stop() ->
 get_ref(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get_ref/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -117,6 +118,7 @@ get_ref(Id, Key) ->
 get(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -137,6 +139,7 @@ get(Id, Key) ->
 get(Id, Ref, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "get/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -159,6 +162,7 @@ get(Id, Ref, Key) ->
 put(Id, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -177,6 +181,7 @@ put(Id, Key, Value) ->
 put(Id, Ref, Key, Value) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -195,6 +200,7 @@ put(Id, Ref, Key, Value) ->
 put_begin_tran(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put_begin_tran/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -213,6 +219,7 @@ put_begin_tran(Id, Key) ->
 put_end_tran(Id, Ref, Key, IsCommit) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "put_end_tran/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
@@ -231,6 +238,7 @@ put_end_tran(Id, Ref, Key, IsCommit) ->
 delete(Id, Key) ->
     case ?get_handler(Id, ?ID_PREFIX) of
         undefined ->
+            ?warn(?MODULE_STRING, "delete/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->

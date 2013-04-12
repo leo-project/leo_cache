@@ -89,6 +89,7 @@
 -define(ERROR_DISC_CACHE_INACTIVE, "Disc cache inactive").
 -define(ERROR_COULD_NOT_GET_STATS, "Could not get stats").
 -define(ERROR_INVALID_OPERATION,   "Invalid operation").
+-define(ERROR_MAYBE_CRASH_SERVER,  "Maybe crach server").
 
 -record(cache_server, {ram_cache_index   :: integer(),
                        ram_cache_mod     :: atom(),
@@ -158,3 +159,10 @@
             _ ->
                 undefined
         end).
+
+-define(error(_M,_F,_C), error_logger:error_msg("~p,~p,~p,~p~n",
+                                                [{module, _M}, {function, _F},
+                                                 {line, ?LINE}, {body, _C}])).
+-define(warn(_M,_F,_C),  error_logger:warning_msg("~p,~p,~p,~p~n",
+                                                  [{module, _M}, {function, _F},
+                                                   {line, ?LINE}, {body, _C}])).
