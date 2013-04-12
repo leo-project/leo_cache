@@ -1,7 +1,15 @@
 CHANGELOG
 =========
 
-0.4.0 (Apr 12, 2013)
+0.4.1 (Apr 12, 2013)
+=====================
+
+* Improved
+    * Output error log when crach cache server
+    * Implemented test suit
+
+
+0.4.0 (Apr 11, 2013)
 =====================
 
 * Initial import
