@@ -52,8 +52,8 @@
 -define(DEF_PROP_RAM_CACHE_SIZE,  128000000). % about 128MB
 -define(DEF_PROP_DISC_CACHE_SIZE, 128000000). % about 128MB
 -define(DEF_PROP_DISC_CACHE_THRESHOLD_LEN, 1000000).
--define(DEF_PROP_DISC_CACHE_DATA_DIR,    "./cache/data/").
--define(DEF_PROP_DISC_CACHE_JOURNAL_DIR, "./cache/journal/").
+-define(DEF_PROP_DISC_CACHE_DATA_DIR,    "./cache/data").
+-define(DEF_PROP_DISC_CACHE_JOURNAL_DIR, "./cache/journal").
 
 
 -ifdef(TEST).

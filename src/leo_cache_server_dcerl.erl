@@ -39,6 +39,7 @@
          delete/2, stats/0]).
 
 -define(ID_PREFIX, "dcerl_").
+-define(STR_SLASH, "/").
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -49,10 +50,37 @@
              ok | {error, any()}).
 start(Workers, Options) ->
     CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
-    Params = [leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
-              leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
+    DataDir       = leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
+    JournalDir    = leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
+    ThresholdLen  = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
+
+    {DataDir2, Options2} =
+        case (string:rstr(DataDir, ?STR_SLASH) == length(DataDir)) of
+            true ->
+                {DataDir, Options};
+            false ->
+                DataDir1 = lists:append([DataDir, ?STR_SLASH]),
+                Options1 = [{?PROP_DISC_CACHE_DATA_DIR, DataDir1}
+                            |lists:delete({?PROP_DISC_CACHE_DATA_DIR, DataDir}, Options)],
+                {DataDir1, Options1}
+        end,
+
+    {JournalDir2, Options4} =
+        case (string:rstr(JournalDir, ?STR_SLASH) == length(JournalDir)) of
+            true ->
+                {JournalDir, Options2};
+            false ->
+                JournalDir1 = lists:append([JournalDir, ?STR_SLASH]),
+                Options3 = [{?PROP_DISC_CACHE_JOURNAL_DIR, JournalDir1}
+                            |lists:delete({?PROP_DISC_CACHE_JOURNAL_DIR, JournalDir}, Options2)],
+                {JournalDir1, Options3}
+        end,
+
+    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options4),
+    Params = [DataDir2,
+              JournalDir2,
               erlang:round(CacheCapacity/Workers),
-              leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options)],
+              ThresholdLen],
     ok = start_1(Workers, Params),
     ok.
 
