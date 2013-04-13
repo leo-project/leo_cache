@@ -1,6 +1,14 @@
 CHANGELOG
 =========
 
+0.4.2 (Apr 13, 2013)
+=====================
+
+* Upgrade cache-servers
+    * [Cherly v0.12.7](https://github.com/leo-project/cherly)
+    * [Dcerl v0.4.1](https://github.com/leo-project/dcerl)
+
+
 0.4.1 (Apr 12, 2013)
 =====================
 
