@@ -72,7 +72,7 @@ get_ref(_Id, _Key) ->
 -spec(get(integer(), binary()) ->
              not_found | {ok, binary()} | {error, any()}).
 get(Id, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_RAM_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "get/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -102,7 +102,7 @@ get(_Id,_Ref,_Key) ->
 -spec(put(integer(), binary(), binary()) ->
              ok | {error, any()}).
 put(Id, Key, Value) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_RAM_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "put/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -144,7 +144,7 @@ put_end_tran(_Id,_Ref,_Key,_IdCommit) ->
 -spec(delete(integer(), binary()) ->
              ok | {error, any()}).
 delete(Id, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_RAM_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "delete/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -181,7 +181,7 @@ start_1(0, _) ->
 start_1(Id, CacheCapacity) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     {ok, Pid} = cherly_server:start_link(ProcId, CacheCapacity),
-    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, CacheCapacity).
 
 
@@ -200,7 +200,7 @@ restart(Id) ->
 
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     {ok, Pid} = cherly_server:start_link(ProcId, erlang:round(CacheCapacity/Workers)),
-    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 
 -spec(restart(pos_integer(), pid()) ->
@@ -220,7 +220,7 @@ restart(Id, Pid) ->
 stop_1(0) ->
     ok;
 stop_1(Id) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_RAM_CACHE_HANDLERS, Id) of
         undefined ->
             void;
         Pid ->
@@ -247,7 +247,7 @@ stats_1(0, Acc) ->
                                     size    = S1 + S2}
                      end, #stats{}, Acc)};
 stats_1(Id, Acc) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_RAM_CACHE_HANDLERS, Id) of
         undefined ->
             {error, ?ERROR_COULD_NOT_GET_STATS};
         Pid ->

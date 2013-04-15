@@ -66,23 +66,35 @@ start(Options) ->
                           ],
 
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options1),
-    catch ets:new(?ETS_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
+    catch ets:new(?ETS_RAM_CACHE_HANDLERS,  [named_table, set, public, {read_concurrency, true}]),
+    catch ets:new(?ETS_DISC_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
+    catch ets:new(?ETS_CACHE_SERVER_INFO,   [named_table, set, public, {read_concurrency, true}]),
 
-    case IsActiveRAMCache of
-        true ->
-            Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options1),
-            ok = RC:start(Workers1, Options1);
-        false ->
-            void
-    end,
-
+    CacheWorkers =
+        case IsActiveRAMCache of
+            true ->
+                Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options1),
+                ok = RC:start(Workers1, Options1),
+                Workers1;
+            false ->
+                0
+        end,
     case IsActiveDiscCache of
         true ->
-            Workers2 = leo_misc:get_value(?PROP_DISC_CACHE_WORKERS, Options1),
-            ok = DC:start(Workers2, Options1);
+            ok = DC:start(CacheWorkers, Options1);
         false ->
             void
     end,
+    ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
+
+    true = ets:insert(?ETS_CACHE_SERVER_INFO,
+                      {0, #cache_server{ram_cache_mod       = RC,
+                                        ram_cache_active    = IsActiveRAMCache,
+                                        disc_cache_mod      = DC,
+                                        disc_cache_active   = IsActiveDiscCache,
+                                        cache_workers       = CacheWorkers,
+                                        chunk_threshold_len = ChunkThresholdLen
+                                       }}),
     ok.
 
 
@@ -106,10 +118,9 @@ stop() ->
 -spec(get_ref(binary()) ->
              not_found | {ok, binary()} | {error, any()}).
 get_ref(Key) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
             DC:get_ref(Id, Key);
@@ -122,13 +133,12 @@ get_ref(Key) ->
 -spec(get(binary()) ->
              not_found | {ok, binary()} | {error, any()}).
 get(Key) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
                   ram_cache_active  = Active1,
                   disc_cache_mod    = DC,
                   disc_cache_index  = Id2,
-                  disc_cache_active = Active2} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active2} = ?cache_servers(Key),
 
     case Active1 of
         true ->
@@ -152,10 +162,9 @@ get(Key) ->
 -spec(get(reference(), binary()) ->
              not_found | {ok, {binary(), boolean()}} | {error, any()}).
 get(Ref, Key) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
             DC:get(Id, Ref, Key);
@@ -168,14 +177,13 @@ get(Ref, Key) ->
 -spec(put(binary(), binary()) ->
              ok | {error, any()}).
 put(Key, Value) ->
-    {ok, Options}  = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
-    ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
                   ram_cache_active  = Active1,
                   disc_cache_mod    = DC,
                   disc_cache_index  = Id2,
-                  disc_cache_active = Active2} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active2,
+                  chunk_threshold_len = ChunkThresholdLen} = ?cache_servers(Key),
 
     case (size(Value) < ChunkThresholdLen) of
         true when Active1 == true ->
@@ -193,10 +201,9 @@ put(Key, Value) ->
 -spec(put(reference(), binary(), binary()) ->
              ok | {error, any()}).
 put(Ref, Key, Value) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
             DC:put(Id, Ref, Key, Value);
@@ -209,10 +216,9 @@ put(Ref, Key, Value) ->
 -spec(put_begin_tran(binary()) ->
              {ok, reference()} | {error, any()}).
 put_begin_tran(Key) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
             DC:put_begin_tran(Id, Key);
@@ -225,10 +231,9 @@ put_begin_tran(Key) ->
 -spec(put_end_tran(reference(), binary(), boolean()) ->
              {ok, reference()} | {error, any()}).
 put_end_tran(Ref, Key, IsCommit) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
             DC:put_end_tran(Id, Ref, Key, IsCommit);
@@ -241,13 +246,12 @@ put_end_tran(Ref, Key, IsCommit) ->
 -spec(delete(binary()) ->
              ok | {error, any()}).
 delete(Key) ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
                   ram_cache_active  = Active1,
                   disc_cache_mod    = DC,
                   disc_cache_index  = Id2,
-                  disc_cache_active = Active2} = ?cache_servers(Key, Options),
+                  disc_cache_active = Active2} = ?cache_servers(Key),
 
     case Active1 of
         true ->
@@ -269,11 +273,10 @@ delete(Key) ->
 -spec(stats() ->
              {ok, any()}).
 stats() ->
-    {ok, Options} = leo_misc:get_env(leo_cache, ?PROP_OPTIONS),
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_active  = Active1,
                   disc_cache_mod    = DC,
-                  disc_cache_active = Active2} = ?cache_servers([], Options),
+                  disc_cache_active = Active2} = ?cache_servers([]),
     case Active1 of
         true ->
             case RC:stats() of

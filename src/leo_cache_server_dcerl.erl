@@ -97,7 +97,7 @@ stop() ->
 -spec(get_ref(integer(), binary()) ->
              {ok, reference()} | {error, undefined}).
 get_ref(Id, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "get_ref/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -118,7 +118,7 @@ get_ref(Id, Key) ->
 -spec(get(integer(), binary()) ->
              not_found | {ok, binary()} | {error, any()}).
 get(Id, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "get/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -141,7 +141,7 @@ get(Id, Key) ->
 -spec(get(integer(), reference(), binary()) ->
              not_found | {ok, binary()} | {error, any()}).
 get(Id, Ref, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "get/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -166,7 +166,7 @@ get(Id, Ref, Key) ->
 -spec(put(integer(), binary(), binary()) ->
              ok | {error, any()}).
 put(Id, Key, Value) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "put/3", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -187,7 +187,7 @@ put(Id, Key, Value) ->
 -spec(put(integer(), reference(), binary()|any(), binary()|any()) ->
              ok | {error, any()}).
 put(Id, Ref, Key, Value) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "put/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -208,7 +208,7 @@ put(Id, Ref, Key, Value) ->
 -spec(put_begin_tran(integer(), binary()|any()) ->
              ok | {error, any()}).
 put_begin_tran(Id, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "put_begin_tran/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -229,7 +229,7 @@ put_begin_tran(Id, Key) ->
 -spec(put_end_tran(integer(), reference(), binary()|any(), boolean()) ->
              ok | {error, any()}).
 put_end_tran(Id, Ref, Key, IsCommit) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "put_end_tran/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -250,7 +250,7 @@ put_end_tran(Id, Ref, Key, IsCommit) ->
 -spec(delete(integer(), binary()) ->
              ok | {error, any()}).
 delete(Id, Key) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "delete/2", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
@@ -288,7 +288,7 @@ start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     {ok, Pid} = dcerl_server:start_link(
                   ProcId, DataDir, JournalDir, CacheCapacity, ThresholdLen),
-    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, Params).
 
 
@@ -311,7 +311,7 @@ restart(Id) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     {ok, Pid} = dcerl_server:start_link(ProcId, DataDir, JournalDir,
                                         erlang:round(CacheCapacity/Workers), ThresholdLen),
-    true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
+    true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 
 -spec(restart(pos_integer(), pid()) ->
@@ -331,7 +331,7 @@ restart(Id, Pid) ->
 stop_1(0) ->
     ok;
 stop_1(Id) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             void;
         Pid ->
@@ -358,7 +358,7 @@ stats_1(0, Acc) ->
                                     size    = S1 + S2}
                      end, #stats{}, Acc)};
 stats_1(Id, Acc) ->
-    case ?get_handler(Id, ?ID_PREFIX) of
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             {error, ?ERROR_COULD_NOT_GET_STATS};
         Pid ->
