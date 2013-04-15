@@ -1,6 +1,14 @@
 CHANGELOG
 =========
 
+0.4.3 (Apr 15, 2013)
+=====================
+
+* Fixed bugs
+    * Not handling and checking "process-dead" when occuring a cache-server error
+        * Implemented re-launch of a process
+
+
 0.4.2 (Apr 13, 2013)
 =====================
 
