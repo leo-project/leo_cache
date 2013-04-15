@@ -27,7 +27,7 @@
 
 -define(ETS_RAM_CACHE_HANDLERS,  'leo_cache_rc_handlers').
 -define(ETS_DISC_CACHE_HANDLERS, 'leo_cache_dc_handlers').
--define(ETS_CACHE_SERVER_INFO,   'leo_cache_cache_server').
+-define(ETS_CACHE_SERVER_INFO,   'leo_cache_server_info').
 
 -define(TYPE_RAM_CACHE,  'ram').
 -define(TYPE_DISC_CACHE, 'disc').
