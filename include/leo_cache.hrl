@@ -90,6 +90,7 @@
 -define(ERROR_COULD_NOT_GET_STATS, "Could not get stats").
 -define(ERROR_INVALID_OPERATION,   "Invalid operation").
 -define(ERROR_MAYBE_CRASH_SERVER,  "Maybe crach server").
+-define(ERROR_PROC_IS_NOT_ALIVE,   "Process is not alive").
 
 -record(cache_server, {ram_cache_index   :: integer(),
                        ram_cache_mod     :: atom(),

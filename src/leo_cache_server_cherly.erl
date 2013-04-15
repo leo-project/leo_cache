@@ -78,12 +78,14 @@ get(Id, Key) ->
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
-            case catch gen_server:call(Pid, {get, Key}) of
+            case gen_server:call(Pid, {get, Key}) of
                 {ok, Value} ->
                     {ok, Value};
                 not_found ->
                     not_found;
-                {_, Cause} ->
+                {error, Cause} ->
+                    ?warn(?MODULE_STRING, "get/2", Cause),
+                    ok = restart(Id, Pid),
                     {error, Cause}
             end
     end.
@@ -106,10 +108,12 @@ put(Id, Key, Value) ->
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
-            case catch gen_server:call(Pid, {put, Key, Value}) of
+            case gen_server:call(Pid, {put, Key, Value}) of
                 ok ->
                     ok;
-                {_, Cause} ->
+                {error, Cause} ->
+                    ?warn(?MODULE_STRING, "put/3", Cause),
+                    ok = restart(Id, Pid),
                     {error, Cause}
             end
     end.
@@ -146,10 +150,12 @@ delete(Id, Key) ->
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
-            case catch gen_server:call(Pid, {delete, Key}) of
+            case gen_server:call(Pid, {delete, Key}) of
                 ok ->
                     ok;
-                {_, Cause} ->
+                {error, Cause} ->
+                    ?warn(?MODULE_STRING, "delete/2", Cause),
+                    ok = restart(Id, Pid),
                     {error, Cause}
             end
     end.
@@ -168,7 +174,7 @@ stats() ->
 %%====================================================================
 %% @doc Start Proc(s)
 %% @private
--spec(start_1(integer(), integer()) ->
+-spec(start_1(pos_integer(), pos_integer()) ->
              ok).
 start_1(0, _) ->
     ok;
@@ -181,7 +187,13 @@ start_1(Id, CacheCapacity) ->
 
 %% @doc Re-launch a process
 %% @private
+-spec(restart(pos_integer()) ->
+             ok).
 restart(Id) ->
+    ?warn(?MODULE_STRING, "restart/1",
+          lists:append(["cherly-id:", integer_to_list(Id),
+                        " ", ?ERROR_PROC_IS_NOT_ALIVE])),
+
     Options = ?get_options(),
     CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
     Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
@@ -191,9 +203,20 @@ restart(Id) ->
     true = ets:insert(?ETS_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 
+-spec(restart(pos_integer(), pid()) ->
+             ok).
+restart(Id, Pid) ->
+    case erlang:is_process_alive(Pid) of
+        true  -> ok;
+        false ->
+            restart(Id)
+    end.
+
 
 %% @doc Stop Proc(s)
 %% @private
+-spec(stop_1(pos_integer()) ->
+             ok).
 stop_1(0) ->
     ok;
 stop_1(Id) ->
@@ -208,6 +231,8 @@ stop_1(Id) ->
 
 %% @doc Retrieve and summarize stats
 %% @private
+-spec(stats_1(pos_integer(), list(#stats{})) ->
+             {ok, list(#stats{})}).
 stats_1(0, Acc) ->
     {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
                           {'delete', D1},{'hits',H1},
@@ -226,7 +251,7 @@ stats_1(Id, Acc) ->
         undefined ->
             {error, ?ERROR_COULD_NOT_GET_STATS};
         Pid ->
-            case catch gen_server:call(Pid, {stats}) of
+            case gen_server:call(Pid, {stats}) of
                 {ok, #cache_stats{gets = Gets,
                                   puts = Puts,
                                   dels = Dels,
