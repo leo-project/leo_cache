@@ -51,7 +51,7 @@ teardown(_) ->
 suite_1_(_) ->
     Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
                 {?PROP_RAM_CACHE_WORKERS,  2},
-                {?PROP_RAM_CACHE_SIZE,     100000},
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4}, %% at least need 1MB
                 {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
                 {?PROP_DISC_CACHE_WORKERS, 0},
                 {?PROP_DISC_CACHE_SIZE,    0},
@@ -93,7 +93,17 @@ suite_1_(_) ->
 %% for Disc Cache
 suite_2_(_) ->
     %% Launch Server
-    leo_cache_api:start(),
+    Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
+                {?PROP_RAM_CACHE_WORKERS,  2},
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4}, %% at least need 1MB
+                {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
+                {?PROP_DISC_CACHE_WORKERS, 2},
+                {?PROP_DISC_CACHE_SIZE,    1024 * 1024 * 16},
+                {?PROP_DISC_CACHE_THRESHOLD_LEN, 1001},
+                {?PROP_DISC_CACHE_DATA_DIR,    ?DEF_PROP_DISC_CACHE_DATA_DIR},
+                {?PROP_DISC_CACHE_JOURNAL_DIR, ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
+               ],
+    leo_cache_api:start(Options),
 
     %% Test - Put#1
     Src = init_source(),

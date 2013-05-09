@@ -23,13 +23,13 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_cache_server_cherly).
+-module(leo_cache_server_mcerl).
 -author("Yosuke Hara").
 
 -behaviour(leo_cache_behaviour).
 
 -include("leo_cache.hrl").
--include_lib("cherly/include/cherly.hrl").
+-include_lib("leo_mcerl/include/leo_mcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
@@ -38,7 +38,7 @@
          put/3, put/4, put_begin_tran/2, put_end_tran/4,
          delete/2, stats/0]).
 
--define(ID_PREFIX, "cherly_").
+-define(ID_PREFIX, "leo_mcerl_").
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -180,7 +180,7 @@ start_1(0, _) ->
     ok;
 start_1(Id, CacheCapacity) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = cherly_server:start_link(ProcId, CacheCapacity),
+    {ok, Pid} = leo_mcerl_server:start_link(ProcId, CacheCapacity),
     true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, CacheCapacity).
 
@@ -191,7 +191,7 @@ start_1(Id, CacheCapacity) ->
              ok).
 restart(Id) ->
     ?warn(?MODULE_STRING, "restart/1",
-          lists:append(["cherly-id:", integer_to_list(Id),
+          lists:append(["leo_mcerl-id:", integer_to_list(Id),
                         " ", ?ERROR_PROC_IS_NOT_ALIVE])),
 
     Options = ?get_options(),
@@ -199,7 +199,7 @@ restart(Id) ->
     Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
 
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = cherly_server:start_link(ProcId, erlang:round(CacheCapacity/Workers)),
+    {ok, Pid} = leo_mcerl_server:start_link(ProcId, erlang:round(CacheCapacity/Workers)),
     true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 
