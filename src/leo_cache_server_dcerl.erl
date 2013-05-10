@@ -105,6 +105,8 @@ get_filepath(Id, Key) ->
             case gen_server:call(Pid, {get_filepath, Key}) of
                 {ok, Meta} ->
                     {ok, Meta};
+                not_found ->
+                    not_found;
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "get_filepath/2", Cause),
                     ok = restart(Id, Pid),
