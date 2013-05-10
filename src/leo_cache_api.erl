@@ -27,12 +27,13 @@
 -author("Yosuke Hara").
 
 -include("leo_cache.hrl").
+-include_lib("leo_dcerl/include/leo_dcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start/0, start/1, stop/0,
-         get_ref/1, get/1, get/2,
-         put/2, put/3, put_begin_tran/1, put_end_tran/3,
+         get_filepath/1, get_ref/1, get/1, get/2,
+         put/2, put/3, put_begin_tran/1, put_end_tran/4,
          delete/1, stats/0]).
 
 %%-----------------------------------------------------------------------
@@ -128,6 +129,19 @@ get_ref(Key) ->
             not_found
     end.
 
+%% @doc Retrieve a meta data of cached object (for large-object)
+-spec(get_filepath(binary()) ->
+             not_found | {ok, #cache_meta{}} | {error, any()}).
+get_filepath(Key) ->
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key),
+    case Active of
+        true ->
+            DC:get_filepath(Id, Key);
+        false ->
+            not_found
+    end.
 
 %% @doc Retrieve an object from the momory storage
 -spec(get(binary()) ->
@@ -228,15 +242,15 @@ put_begin_tran(Key) ->
 
 
 %% @doc Insert a chunked-object into the disc
--spec(put_end_tran(reference(), binary(), boolean()) ->
+-spec(put_end_tran(reference(), binary(), #cache_meta{}, boolean()) ->
              {ok, reference()} | {error, any()}).
-put_end_tran(Ref, Key, IsCommit) ->
+put_end_tran(Ref, Key, Meta, IsCommit) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
-            DC:put_end_tran(Id, Ref, Key, IsCommit);
+            DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
         false ->
             {error, ?ERROR_INVALID_OPERATION}
     end.

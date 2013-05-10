@@ -30,12 +30,13 @@
 
 -include("leo_cache.hrl").
 -include_lib("leo_mcerl/include/leo_mcerl.hrl").
+%-include_lib("leo_dcerl/include/leo_dcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start/2, stop/0,
-         get_ref/2, get/2, get/3,
-         put/3, put/4, put_begin_tran/2, put_end_tran/4,
+         get_filepath/2, get_ref/2, get/2, get/3,
+         put/3, put/4, put_begin_tran/2, put_end_tran/5,
          delete/2, stats/0]).
 
 -define(ID_PREFIX, "leo_mcerl_").
@@ -67,6 +68,12 @@ stop() ->
 get_ref(_Id, _Key) ->
     {error, undefined}.
 
+%% @doc Retrieve a meta data of cached object (for large-object)
+%%
+-spec(get_filepath(integer(), binary()) ->
+      {ok, any()} | {error, undefined}).
+get_filepath(_Id, _Key) ->
+    {error, undefined}.
 
 %% @doc Retrieve an object from cache-server
 -spec(get(integer(), binary()) ->
@@ -97,7 +104,6 @@ get(Id, Key) ->
 get(_Id,_Ref,_Key) ->
     not_found.
 
-
 %% @doc Insert an object into the momory storage
 -spec(put(integer(), binary(), binary()) ->
              ok | {error, any()}).
@@ -123,22 +129,19 @@ put(Id, Key, Value) ->
 -spec(put(integer(), reference(), binary()|any(), binary()|any()) ->
              ok | {error, any()}).
 put(_Id,_Ref,_Key,_Value) ->
-    ok.
-
+    {error, undefined}.
 
 %% @doc Start put-transaction for large-object (for large-object)
 -spec(put_begin_tran(integer(), binary()|any()) ->
              ok | {error, any()}).
 put_begin_tran(_Id,_Key) ->
-    {ok, undefine}.
-
+    {error, undefined}.
 
 %% @doc End put-transaction for large-object (for large-object)
--spec(put_end_tran(integer(), reference(), binary()|any(), boolean()) ->
+-spec(put_end_tran(integer(), reference(), binary()|any(), any(), boolean()) ->
              ok | {error, any()}).
-put_end_tran(_Id,_Ref,_Key,_IdCommit) ->
-    ok.
-
+put_end_tran(_Id,_Ref,_Key,_Meta,_IdCommit) ->
+    {error, undefined}.
 
 %% @doc Remove an object from the momory storage
 -spec(delete(integer(), binary()) ->
