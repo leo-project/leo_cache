@@ -29,16 +29,16 @@
 -behaviour(leo_cache_behaviour).
 
 -include("leo_cache.hrl").
--include_lib("dcerl/include/dcerl.hrl").
+-include_lib("leo_dcerl/include/leo_dcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start/2, stop/0,
-         get_ref/2, get/2, get/3,
-         put/3, put/4, put_begin_tran/2, put_end_tran/4,
+         get_filepath/2, get_ref/2, get/2, get/3,
+         put/3, put/4, put_begin_tran/2, put_end_tran/5,
          delete/2, stats/0]).
 
--define(ID_PREFIX, "dcerl_").
+-define(ID_PREFIX, "leo_dcerl_").
 -define(STR_SLASH, "/").
 
 %%-----------------------------------------------------------------------
@@ -91,6 +91,28 @@ start(Workers, Options) ->
 stop() ->
     stop_1(?get_workers()).
 
+%% @doc Retrieve a meta data of cached object (for large-object)
+%%
+-spec(get_filepath(integer(), binary()) ->
+             {ok, #cache_meta{}} | {error, undefined}).
+get_filepath(Id, Key) ->
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
+        undefined ->
+            ?warn(?MODULE_STRING, "get_filepath/2", ?ERROR_MAYBE_CRASH_SERVER),
+            ok = restart(Id),
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case gen_server:call(Pid, {get_filepath, Key}) of
+                {ok, Meta} ->
+                    {ok, Meta};
+                not_found ->
+                    not_found;
+                {error, Cause} ->
+                    ?warn(?MODULE_STRING, "get_filepath/2", Cause),
+                    ok = restart(Id, Pid),
+                    {error, Cause}
+            end
+    end.
 
 %% @doc Retrieve a reference of cached object (for large-object)
 %%
@@ -226,16 +248,16 @@ put_begin_tran(Id, Key) ->
 
 
 %% @doc End put-transaction for large-object (for large-object)
--spec(put_end_tran(integer(), reference(), binary()|any(), boolean()) ->
+-spec(put_end_tran(integer(), reference(), binary()|any(), #cache_meta{}, boolean()) ->
              ok | {error, any()}).
-put_end_tran(Id, Ref, Key, IsCommit) ->
+put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
             ?warn(?MODULE_STRING, "put_end_tran/4", ?ERROR_MAYBE_CRASH_SERVER),
             ok = restart(Id),
             {error, ?ERROR_DISC_CACHE_INACTIVE};
         Pid ->
-            case gen_server:call(Pid, {put_end_tran, Ref, Key, IsCommit}) of
+            case gen_server:call(Pid, {put_end_tran, Ref, Key, Meta, IsCommit}) of
                 ok ->
                     ok;
                 {error, Cause} ->
@@ -286,8 +308,10 @@ start_1(0, _) ->
     ok;
 start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = dcerl_server:start_link(
-                  ProcId, DataDir, JournalDir, CacheCapacity, ThresholdLen),
+    DataDir1 = lists:append([DataDir, integer_to_list(Id), ?STR_SLASH]),
+    JournalDir1 = lists:append([JournalDir, integer_to_list(Id), ?STR_SLASH]),
+    {ok, Pid} = leo_dcerl_server:start_link(
+                  ProcId, DataDir1, JournalDir1, CacheCapacity, ThresholdLen),
     true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, Params).
 
@@ -298,7 +322,7 @@ start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
              ok).
 restart(Id) ->
     ?warn(?MODULE_STRING, "restart/1",
-          lists:append(["dcerl-id:", integer_to_list(Id),
+          lists:append(["leo_dcerl-id:", integer_to_list(Id),
                         " ", ?ERROR_PROC_IS_NOT_ALIVE])),
 
     Options = ?get_options(),
@@ -309,8 +333,8 @@ restart(Id) ->
     ThresholdLen  = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
 
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = dcerl_server:start_link(ProcId, DataDir, JournalDir,
-                                        erlang:round(CacheCapacity/Workers), ThresholdLen),
+    {ok, Pid} = leo_dcerl_server:start_link(ProcId, DataDir, JournalDir,
+                                            erlang:round(CacheCapacity/Workers), ThresholdLen),
     true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 

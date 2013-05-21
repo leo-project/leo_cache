@@ -27,6 +27,7 @@
 -author('Yosuke Hara').
 
 -include("leo_cache.hrl").
+-include_lib("leo_dcerl/include/leo_dcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %%--------------------------------------------------------------------
@@ -51,7 +52,7 @@ teardown(_) ->
 suite_1_(_) ->
     Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
                 {?PROP_RAM_CACHE_WORKERS,  2},
-                {?PROP_RAM_CACHE_SIZE,     100000},
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4}, %% at least need 1MB
                 {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
                 {?PROP_DISC_CACHE_WORKERS, 0},
                 {?PROP_DISC_CACHE_SIZE,    0},
@@ -93,7 +94,17 @@ suite_1_(_) ->
 %% for Disc Cache
 suite_2_(_) ->
     %% Launch Server
-    leo_cache_api:start(),
+    Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
+                {?PROP_RAM_CACHE_WORKERS,  2},
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4}, %% at least need 1MB
+                {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
+                {?PROP_DISC_CACHE_WORKERS, 2},
+                {?PROP_DISC_CACHE_SIZE,    1024 * 1024 * 16},
+                {?PROP_DISC_CACHE_THRESHOLD_LEN, 1001},
+                {?PROP_DISC_CACHE_DATA_DIR,    ?DEF_PROP_DISC_CACHE_DATA_DIR},
+                {?PROP_DISC_CACHE_JOURNAL_DIR, ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
+               ],
+    leo_cache_api:start(Options),
 
     %% Test - Put#1
     Src = init_source(),
@@ -121,7 +132,11 @@ suite_2_(_) ->
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
-    ok = leo_cache_api:put_end_tran(Ref, BinKey, true),
+    CM = #cache_meta{
+        md5 = 1,
+        mtime = 123,
+        content_type = "image/jpeg"},
+    ok = leo_cache_api:put_end_tran(Ref, BinKey, CM, true),
 
     {ok, CS3} = leo_cache_api:stats(),
     ?assertEqual(2, CS3#stats.put),
@@ -134,9 +149,15 @@ suite_2_(_) ->
     {ok, Ref2} = leo_cache_api:get_ref(BinKey),
     ok = get_chunked(Ref2, BinKey, Chunk),
 
+    {ok, CM2} = leo_cache_api:get_filepath(BinKey),
+    ?assertEqual(1001*3, CM2#cache_meta.size),
+    ?assertEqual(1, CM2#cache_meta.md5),
+    ?assertEqual(123, CM2#cache_meta.mtime),
+    ?assertEqual("image/jpeg", CM2#cache_meta.content_type),
+
     {ok, CS4} = leo_cache_api:stats(),
-    ?assertEqual(5, CS4#stats.get),
-    ?assertEqual(3, CS4#stats.hits),
+    ?assertEqual(6, CS4#stats.get),
+    ?assertEqual(4, CS4#stats.hits),
     ?assertEqual(1, CS4#stats.records),
     ok = leo_cache_api:delete(BinKey),
     ok.

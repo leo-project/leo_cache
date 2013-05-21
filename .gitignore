@@ -3,5 +3,6 @@ deps
 *.o
 *.beam
 *.plt
+*.swp
 ebin/
 

@@ -47,7 +47,7 @@
 -define(PROP_DISC_CACHE_DATA_DIR,    'disc_cache_data_dir').
 -define(PROP_DISC_CACHE_JOURNAL_DIR, 'disc_cache_journal_dir').
 
--define(DEF_PROP_RAM_CACHE,  'cherly').
+-define(DEF_PROP_RAM_CACHE,  'mcerl').
 -define(DEF_PROP_DISC_CACHE, 'dcerl').
 -define(DEF_PROP_RAM_CACHE_WORKERS,  32).
 -define(DEF_PROP_DISC_CACHE_WORKERS, 16).

@@ -1,6 +1,14 @@
 CHANGELOG
 =========
 
+0.4.5 (May 21, 2013)
+=====================
+
+* Upgrade cache libs
+    * from cherly to leo_mcerl
+    * from dcerl to leo_dcerl
+
+
 0.4.4 (Apr 15, 2013)
 =====================
 

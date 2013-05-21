@@ -1,3 +1,4 @@
+%% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %%======================================================================
 %%
 %% Leo Cache
@@ -26,7 +27,7 @@
 {application, leo_cache,
  [
   {description, ""},
-  {vsn, "0.4.4"},
+  {vsn, "0.4.5"},
   {registered, []},
   {applications, [
                   kernel,

@@ -26,6 +26,7 @@
 -module(leo_cache_behaviour).
 -author("Yosuke Hara").
 
+-include_lib("leo_dcerl/include/leo_dcerl.hrl").
 
 %% @doc Launch target server
 -callback(start(Workers::integer(), Options::list(tuple())) ->
@@ -38,6 +39,10 @@
 %% @doc Retrieve a cache reference
 -callback(get_ref(Id::integer(), Key::binary()|any()) ->
                  {ok, reference()} | {error, undefined}).
+
+%% @doc Retrieve a cache meta data
+-callback(get_filepath(Id::integer(), Key::binary()|any()) ->
+                 {ok, #cache_meta{}} | {error, undefined}).
 
 %% @doc Retrieve an object from server
 -callback(get(Id::integer(), Key::binary()|any()) ->
@@ -59,7 +64,7 @@
                  ok | {error, any()}).
 
 %% @doc Start put transaction for large-object
--callback(put_end_tran(Id::integer(), Ref::reference(), Key::binary()|any(), IsCommit::boolean()) ->
+-callback(put_end_tran(Id::integer(), Ref::reference(), Key::binary()|any(), Meta::#cache_meta{}, IsCommit::boolean()) ->
                  ok | {error, any()}).
 
 %% @doc Remove an object into server

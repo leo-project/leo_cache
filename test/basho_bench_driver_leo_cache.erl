@@ -31,8 +31,12 @@
 %% API
 %% ====================================================================
 
-new(_Id) ->
-    leo_cache_api:start(?DEF_OPTIONS),
+new(Id) ->
+    case Id of
+        1 ->
+            leo_cache_api:start(?DEF_OPTIONS);
+        _ -> void
+    end,
     {ok, null}.
 
 
@@ -44,7 +48,7 @@ run(get, KeyGen, _ValueGen, State) ->
         not_found ->
             {ok, State};
         {error, Reason} ->
-            {error, Reason}
+            {error, Reason, State}
     end;
 
 run(put, KeyGen, ValueGen, State) ->
@@ -53,6 +57,6 @@ run(put, KeyGen, ValueGen, State) ->
         ok ->
             {ok, State};
         {error, Reason} ->
-            {error, Reason}
+            {error, Reason, State}
     end.
 

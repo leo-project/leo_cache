@@ -23,22 +23,22 @@
 %% @doc
 %% @end
 %%======================================================================
--module(leo_cache_server_cherly).
+-module(leo_cache_server_mcerl).
 -author("Yosuke Hara").
 
 -behaviour(leo_cache_behaviour).
 
 -include("leo_cache.hrl").
--include_lib("cherly/include/cherly.hrl").
+-include_lib("leo_mcerl/include/leo_mcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start/2, stop/0,
-         get_ref/2, get/2, get/3,
-         put/3, put/4, put_begin_tran/2, put_end_tran/4,
+         get_filepath/2, get_ref/2, get/2, get/3,
+         put/3, put/4, put_begin_tran/2, put_end_tran/5,
          delete/2, stats/0]).
 
--define(ID_PREFIX, "cherly_").
+-define(ID_PREFIX, "leo_mcerl_").
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -67,6 +67,12 @@ stop() ->
 get_ref(_Id, _Key) ->
     {error, undefined}.
 
+%% @doc Retrieve a meta data of cached object (for large-object)
+%%
+-spec(get_filepath(integer(), binary()) ->
+             {ok, any()} | {error, undefined}).
+get_filepath(_Id, _Key) ->
+    {error, undefined}.
 
 %% @doc Retrieve an object from cache-server
 -spec(get(integer(), binary()) ->
@@ -97,7 +103,6 @@ get(Id, Key) ->
 get(_Id,_Ref,_Key) ->
     not_found.
 
-
 %% @doc Insert an object into the momory storage
 -spec(put(integer(), binary(), binary()) ->
              ok | {error, any()}).
@@ -123,22 +128,19 @@ put(Id, Key, Value) ->
 -spec(put(integer(), reference(), binary()|any(), binary()|any()) ->
              ok | {error, any()}).
 put(_Id,_Ref,_Key,_Value) ->
-    ok.
-
+    {error, undefined}.
 
 %% @doc Start put-transaction for large-object (for large-object)
 -spec(put_begin_tran(integer(), binary()|any()) ->
              ok | {error, any()}).
 put_begin_tran(_Id,_Key) ->
-    {ok, undefine}.
-
+    {error, undefined}.
 
 %% @doc End put-transaction for large-object (for large-object)
--spec(put_end_tran(integer(), reference(), binary()|any(), boolean()) ->
+-spec(put_end_tran(integer(), reference(), binary()|any(), any(), boolean()) ->
              ok | {error, any()}).
-put_end_tran(_Id,_Ref,_Key,_IdCommit) ->
-    ok.
-
+put_end_tran(_Id,_Ref,_Key,_Meta,_IdCommit) ->
+    {error, undefined}.
 
 %% @doc Remove an object from the momory storage
 -spec(delete(integer(), binary()) ->
@@ -180,7 +182,7 @@ start_1(0, _) ->
     ok;
 start_1(Id, CacheCapacity) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = cherly_server:start_link(ProcId, CacheCapacity),
+    {ok, Pid} = leo_mcerl_server:start_link(ProcId, CacheCapacity),
     true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, CacheCapacity).
 
@@ -191,7 +193,7 @@ start_1(Id, CacheCapacity) ->
              ok).
 restart(Id) ->
     ?warn(?MODULE_STRING, "restart/1",
-          lists:append(["cherly-id:", integer_to_list(Id),
+          lists:append(["leo_mcerl-id:", integer_to_list(Id),
                         " ", ?ERROR_PROC_IS_NOT_ALIVE])),
 
     Options = ?get_options(),
@@ -199,7 +201,7 @@ restart(Id) ->
     Workers = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options),
 
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = cherly_server:start_link(ProcId, erlang:round(CacheCapacity/Workers)),
+    {ok, Pid} = leo_mcerl_server:start_link(ProcId, erlang:round(CacheCapacity/Workers)),
     true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 
