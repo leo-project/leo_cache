@@ -94,7 +94,7 @@ stop() ->
 %% @doc Retrieve a meta data of cached object (for large-object)
 %%
 -spec(get_filepath(integer(), binary()) ->
-      {ok, #cache_meta{}} | {error, undefined}).
+             {ok, #cache_meta{}} | {error, undefined}).
 get_filepath(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -334,7 +334,7 @@ restart(Id) ->
 
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     {ok, Pid} = leo_dcerl_server:start_link(ProcId, DataDir, JournalDir,
-                                        erlang:round(CacheCapacity/Workers), ThresholdLen),
+                                            erlang:round(CacheCapacity/Workers), ThresholdLen),
     true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 

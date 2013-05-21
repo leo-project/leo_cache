@@ -30,7 +30,6 @@
 
 -include("leo_cache.hrl").
 -include_lib("leo_mcerl/include/leo_mcerl.hrl").
-%-include_lib("leo_dcerl/include/leo_dcerl.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
@@ -71,7 +70,7 @@ get_ref(_Id, _Key) ->
 %% @doc Retrieve a meta data of cached object (for large-object)
 %%
 -spec(get_filepath(integer(), binary()) ->
-      {ok, any()} | {error, undefined}).
+             {ok, any()} | {error, undefined}).
 get_filepath(_Id, _Key) ->
     {error, undefined}.
 
