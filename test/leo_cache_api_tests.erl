@@ -52,7 +52,7 @@ teardown(_) ->
 suite_1_(_) ->
     Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
                 {?PROP_RAM_CACHE_WORKERS,  2},
-                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4}, %% at least need 1MB
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 16}, %% at least need 1MB
                 {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
                 {?PROP_DISC_CACHE_WORKERS, 0},
                 {?PROP_DISC_CACHE_SIZE,    0},
