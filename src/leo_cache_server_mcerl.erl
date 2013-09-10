@@ -116,6 +116,8 @@ put(Id, Key, Value) ->
             case gen_server:call(Pid, {put, Key, Value}) of
                 ok ->
                     ok;
+                {error, 'out_of_memory' = Cause} ->
+                    {error, Cause};
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "put/3", Cause),
                     ok = restart(Id, Pid),
