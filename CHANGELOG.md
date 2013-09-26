@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+0.4.12 (Sep 26, 2013)
+=====================
+
+* Upgrade cache libs, which supported Erlang/OTP-R16B02
+
 0.4.5 (May 21, 2013)
 =====================
 
