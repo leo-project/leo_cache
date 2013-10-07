@@ -1,10 +1,17 @@
 CHANGELOG
 =========
 
+0.4.13 (Oct 7, 2013)
+=====================
+
+* Upgrade leo_commons to 0.14.8
+
+
 0.4.12 (Sep 26, 2013)
 =====================
 
 * Upgrade cache libs, which supported Erlang/OTP-R16B02
+
 
 0.4.5 (May 21, 2013)
 =====================
