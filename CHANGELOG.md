@@ -1,6 +1,20 @@
 CHANGELOG
 =========
 
+0.4.15 (Dec 11, 2013)
+=====================
+
+* Upgrade leo_dcerl to 0.2.6
+* Upgrade leo_mcerl to 0.2.8
+
+
+0.4.15 (Nov 26, 2013)
+=====================
+
+* Upgrade leo_dcerl to 0.2.5
+* Upgrade leo_mcerl to 0.2.7
+
+
 0.4.13 (Oct 7, 2013)
 =====================
 
