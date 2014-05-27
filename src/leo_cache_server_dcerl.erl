@@ -262,7 +262,6 @@ put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
                     ok;
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "put_end_tran/4", Cause),
-                    ok = restart(Id, Pid),
                     {error, Cause}
             end
     end.
