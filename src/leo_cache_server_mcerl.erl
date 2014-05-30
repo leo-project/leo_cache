@@ -40,6 +40,14 @@
 
 -define(ID_PREFIX, "leo_mcerl_").
 
+-record(cache_meta, {
+          size         = 0  :: non_neg_integer(),
+          md5          = 0  :: integer(),
+          mtime        = 0  :: non_neg_integer(),
+          content_type = "NULL" :: string(),
+          file_path    = "" :: file:name_all()
+         }).
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
@@ -69,8 +77,8 @@ get_ref(_Id, _Key) ->
 
 %% @doc Retrieve a meta data of cached object (for large-object)
 %%
--spec(get_filepath(integer(), binary()) ->
-             {ok, any()} | {error, undefined}).
+-spec(get_filepath(non_neg_integer(), binary()) ->
+             {ok, #cache_meta{}} | {error, undefined}).
 get_filepath(_Id, _Key) ->
     {error, undefined}.
 
@@ -235,8 +243,8 @@ stop_1(Id) ->
 
 %% @doc Retrieve and summarize stats
 %% @private
--spec(stats_1(pos_integer(), list(#stats{})) ->
-             {ok, list(#stats{})}).
+-spec(stats_1(pos_integer(), [#stats{}]) ->
+             {ok, [#stats{}]} | {error, any()}).
 stats_1(0, Acc) ->
     {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
                           {'delete', D1},{'hits',H1},
@@ -269,4 +277,3 @@ stats_1(Id, Acc) ->
                     {error, ?ERROR_COULD_NOT_GET_STATS}
             end
     end.
-

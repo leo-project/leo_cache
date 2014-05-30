@@ -46,10 +46,10 @@
 
 %% @doc Retrieve an object from server
 -callback(get(Id::integer(), Key::binary()|any()) ->
-                 ok | {error, any()}).
+                 {ok, binary()} | not_found | {error, any()}).
 
 -callback(get(Id::integer(), Ref::reference(), Key::binary()|any()) ->
-                 ok | {error, any()}).
+                 {ok, binary()} | not_found | {error, any()}).
 
 %% @doc Insert an object into server
 -callback(put(Id::integer(), Key::binary()|any(), Value::binary()|any()) ->
@@ -73,7 +73,7 @@
 
 %% @doc Retrieve status of server
 -callback(stats() ->
-                 ok | {error, any()}).
+                 {ok, any()} | {error, any()}).
 
 %% @TODO
 %% -callback(callback() ->
