@@ -104,12 +104,12 @@
                        chunk_threshold_len :: pos_integer()
                       }).
 
--record(stats,  {get     = 0 :: pos_integer(),
-                 put     = 0 :: pos_integer(),
-                 delete  = 0 :: pos_integer(),
-                 hits    = 0 :: pos_integer(),
-                 records = 0 :: pos_integer(),
-                 size    = 0 :: pos_integer()
+-record(stats,  {get     = 0 :: non_neg_integer(),
+                 put     = 0 :: non_neg_integer(),
+                 delete  = 0 :: non_neg_integer(),
+                 hits    = 0 :: non_neg_integer(),
+                 records = 0 :: non_neg_integer(),
+                 size    = 0 :: non_neg_integer()
                 }).
 
 %% Macros

@@ -5,4 +5,6 @@ deps
 *.plt
 *.swp
 ebin/
-
+.leo_cache_dialyzer_plt
+leo_cache.dot
+leo_cache.png

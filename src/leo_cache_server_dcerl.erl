@@ -137,7 +137,7 @@ get_ref(Id, Key) ->
 
 
 %% @doc Retrieve an object from cache-server
--spec(get(integer(), binary()) ->
+-spec(get(integer(), binary()|any()) ->
              not_found | {ok, binary()} | {error, any()}).
 get(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
@@ -262,7 +262,6 @@ put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
                     ok;
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "put_end_tran/4", Cause),
-                    ok = restart(Id, Pid),
                     {error, Cause}
             end
     end.
@@ -292,7 +291,7 @@ delete(Id, Key) ->
 %% @doc Retrieve status of this application
 %%
 -spec(stats() ->
-             {ok, any()}).
+             {ok, any()} | {error, any()}).
 stats() ->
     stats_1(?get_workers(), []).
 
@@ -302,7 +301,7 @@ stats() ->
 %%====================================================================
 %% @doc Start Proc(s)
 %% @private
--spec(start_1(pos_integer(), pos_integer()) ->
+-spec(start_1(non_neg_integer(), [any()]) ->
              ok).
 start_1(0, _) ->
     ok;
@@ -366,8 +365,8 @@ stop_1(Id) ->
 
 %% @doc Retrieve and summarize stats
 %% @private
--spec(stats_1(pos_integer(), list(#stats{})) ->
-             {ok, list(#stats{})}).
+-spec(stats_1(non_neg_integer(), [#stats{}]) ->
+             {ok, [#stats{}]} | {error, any()}).
 stats_1(0, Acc) ->
     {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
                           {'delete', D1},{'hits',H1},
