@@ -1,11 +1,19 @@
 CHANGELOG
 =========
 
+0.4.21 (May 30, 2014)
+=====================
+
+* Supported to execute dialyzer
+* Able to build R17
+
+
 0.4.17 (Jan 24, 2014)
 =====================
 
 * Upgrade leo_dcerl to 0.2.8
 * Upgrade leo_mcerl to 0.2.10
+
 
 0.4.15 (Dec 11, 2013)
 =====================
