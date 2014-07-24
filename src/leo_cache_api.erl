@@ -242,7 +242,7 @@ put_begin_tran(Key) ->
 
 
 %% @doc Insert a chunked-object into the disc
--spec(put_end_tran(reference(), binary(), #cache_meta{}, boolean()) ->
+-spec(put_end_tran(reference(), binary(), #cache_meta{} | undefined, boolean()) ->
              {ok, reference()} | {error, any()}).
 put_end_tran(Ref, Key, Meta, IsCommit) ->
     #cache_server{disc_cache_mod    = DC,
