@@ -27,7 +27,7 @@
 {application, leo_cache,
  [
   {description, "Leo cache"},
-  {vsn, "0.4.22"},
+  {vsn, "0.4.23"},
   {registered, []},
   {applications, [
                   kernel,
