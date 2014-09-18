@@ -29,47 +29,64 @@
 -include_lib("leo_dcerl/include/leo_dcerl.hrl").
 
 %% @doc Launch target server
--callback(start(Workers::integer(), Options::list(tuple())) ->
-                 ok | {error, any()}).
+-callback(start(Workers, Options) ->
+                 ok | {error, any()} when Workers::integer(),
+                                          Options::list(tuple())).
 
 %% @doc Stop target server
 -callback(stop() ->
                  ok | {error, any()}).
 
 %% @doc Retrieve a cache reference
--callback(get_ref(Id::integer(), Key::binary()|any()) ->
-                 {ok, reference()} | {error, undefined}).
+-callback(get_ref(Id, Key) ->
+                 {ok, reference()} | {error, undefined} when Id::integer(),
+                                                             Key::binary()|any()).
 
 %% @doc Retrieve a cache meta data
--callback(get_filepath(Id::integer(), Key::binary()|any()) ->
-                 {ok, #cache_meta{}} | {error, undefined}).
+-callback(get_filepath(Id, Key) ->
+                 {ok, #cache_meta{}} | {error, undefined} when Id::integer(),
+                                                               Key::binary()|any()).
 
 %% @doc Retrieve an object from server
--callback(get(Id::integer(), Key::binary()|any()) ->
-                 {ok, binary()} | not_found | {error, any()}).
+-callback(get(Id, Key) ->
+                 {ok, binary()} | not_found | {error, any()} when Id::integer(),
+                                                                  Key::binary()|any()).
 
--callback(get(Id::integer(), Ref::reference(), Key::binary()|any()) ->
-                 {ok, binary()} | not_found | {error, any()}).
+-callback(get(Id, Ref, Key) ->
+                 {ok, binary()} | not_found | {error, any()} when Id::integer(),
+                                                                  Ref::reference(),
+                                                                  Key::binary()|any()).
 
 %% @doc Insert an object into server
--callback(put(Id::integer(), Key::binary()|any(), Value::binary()|any()) ->
-                 ok | {error, any()}).
+-callback(put(Id, Key, Value) ->
+                 ok | {error, any()} when Id::integer(),
+                                          Key::binary()|any(),
+                                          Value::binary()|any()).
 
 %% @doc Insert an object into server
--callback(put(Id::integer(), Ref::reference(), Key::binary()|any(), Value::binary()|any()) ->
-                 ok | {error, any()}).
+-callback(put(Id, Ref, Key, Value) ->
+                 ok | {error, any()} when Id::integer(),
+                                          Ref::reference(),
+                                          Key::binary()|any(),
+                                          Value::binary()|any()).
 
 %% @doc Start put transaction for large-object
--callback(put_begin_tran(Id::integer(), Key::binary()|any()) ->
-                 ok | {error, any()}).
+-callback(put_begin_tran(Id, Key) ->
+                 ok | {error, any()} when Id::integer(),
+                                          Key::binary()|any()).
 
 %% @doc Start put transaction for large-object
--callback(put_end_tran(Id::integer(), Ref::reference(), Key::binary()|any(), Meta::#cache_meta{}, IsCommit::boolean()) ->
-                 ok | {error, any()}).
+-callback(put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
+                 ok | {error, any()} when Id::integer(),
+                                          Ref::reference(),
+                                          Key::binary()|any(),
+                                          Meta::#cache_meta{},
+                                          IsCommit::boolean()).
 
 %% @doc Remove an object into server
--callback(delete(Id::integer(), Key::binary()|any()) ->
-                 ok | {error, any()}).
+-callback(delete(Id, Key) ->
+                 ok | {error, any()} when Id::integer(),
+                                          Key::binary()|any()).
 
 %% @doc Retrieve status of server
 -callback(stats() ->
