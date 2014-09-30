@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Cache - [D]isc [C]ache [Erl]ng
-%% @doc
+%%
+%% @doc The disc-cache server
+%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_dcerl.erl]
 %% @end
 %%======================================================================
 -module(leo_cache_server_dcerl).
@@ -41,6 +43,7 @@
 -define(ID_PREFIX, "leo_dcerl_").
 -define(STR_SLASH, "/").
 
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
@@ -48,7 +51,7 @@
 %%
 -spec(start(Workers, Options) ->
              ok | {error, any()} when Workers::integer(),
-                                      Options::list(tuple())).
+                                      Options::[{atom(), any()}]).
 start(Workers, Options) ->
     CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
     DataDir       = leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
@@ -88,15 +91,18 @@ start(Workers, Options) ->
 
 %% @doc Stop cache-server(s)
 %%
--spec(stop() -> ok).
+-spec(stop() ->
+             ok).
 stop() ->
     stop_1(?get_workers()).
+
 
 %% @doc Retrieve a meta data of cached object (for large-object)
 %%
 -spec(get_filepath(Id, Key) ->
-             {ok, #cache_meta{}} | {error, undefined} when Id::integer(),
-                                                           Key::binary()|any()).
+             {ok, #cache_meta{}} |
+             {error, undefined} when Id::integer(),
+                                     Key::binary()|any()).
 get_filepath(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -116,11 +122,13 @@ get_filepath(Id, Key) ->
             end
     end.
 
+
 %% @doc Retrieve a reference of cached object (for large-object)
 %%
 -spec(get_ref(Id, Key) ->
-             {ok, reference()} | {error, undefined} when Id::integer(),
-                                                         Key::binary()|any()).
+             {ok, reference()} |
+             {error, undefined} when Id::integer(),
+                                     Key::binary()|any()).
 get_ref(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -141,8 +149,10 @@ get_ref(Id, Key) ->
 
 %% @doc Retrieve an object from cache-server
 -spec(get(Id, Key) ->
-             not_found | {ok, binary()} | {error, any()} when Id::integer(),
-                                                              Key::binary()|any()). 
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Id::integer(),
+                                 Key::binary()|any()).
 get(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -165,9 +175,11 @@ get(Id, Key) ->
 
 %% @doc Retrieve an object from cache-server (for large-object)
 -spec(get(Id, Ref, Key) ->
-             not_found | {ok, binary()} | {error, any()} when Id::integer(),
-                                                              Ref::reference(),
-                                                              Key::binary()|any()). 
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Id::integer(),
+                                 Ref::reference(),
+                                 Key::binary()|any()).
 
 get(Id, Ref, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of

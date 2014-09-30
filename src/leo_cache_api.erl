@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Cache
-%% @doc
+%%
+%% @doc The cache API
+%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_dcerl.erl]
 %% @end
 %%======================================================================
 -module(leo_cache_api).
@@ -36,6 +38,7 @@
          put/2, put/3, put_begin_tran/1, put_end_tran/4,
          delete/1, stats/0]).
 
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
@@ -47,7 +50,7 @@ start() ->
     start(?DEF_OPTIONS).
 
 -spec(start(Options) ->
-             ok | {error, any()} when Options::list(tuple())).
+             ok | {error, any()} when Options::[{atom(), any()}]).
 start(Options) ->
     ok = leo_misc:init_env(),
     RC = ?gen_mod_name(leo_misc:get_value(?PROP_RAM_CACHE_NAME,  Options)),
@@ -101,7 +104,8 @@ start(Options) ->
 
 %% @doc Stop cache-server(s)
 %%
--spec(stop() -> ok).
+-spec(stop() ->
+             ok).
 stop() ->
     Options = ?get_options(),
     case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
@@ -117,7 +121,9 @@ stop() ->
 
 %% @doc Retrieve a reference of cached object (for large-object)
 -spec(get_ref(Key) ->
-             not_found | {ok, reference()} | {error, any()} when Key::binary()).
+             not_found |
+             {ok, reference()} |
+             {error, any()} when Key::binary()).
 get_ref(Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -129,9 +135,12 @@ get_ref(Key) ->
             not_found
     end.
 
+
 %% @doc Retrieve a meta data of cached object (for large-object)
 -spec(get_filepath(Key) ->
-             not_found | {ok, #cache_meta{}} | {error, any()} when Key::binary()).
+             not_found |
+             {ok, #cache_meta{}} |
+             {error, any()} when Key::binary()).
 get_filepath(Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -143,9 +152,12 @@ get_filepath(Key) ->
             not_found
     end.
 
+
 %% @doc Retrieve an object from the momory storage
 -spec(get(Key) ->
-             not_found | {ok, binary()} | {error, any()} when Key::binary()).
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Key::binary()).
 get(Key) ->
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
@@ -174,8 +186,10 @@ get(Key) ->
 %% @doc Retrieve a chunked-object from disc-cache (for large-object)
 %%
 -spec(get(Ref, Key) ->
-             not_found | {ok, {binary(), boolean()}} | {error, any()} when Ref::reference(),
-                                                                           Key::binary()).
+             not_found |
+             {ok, {binary(), boolean()}} |
+             {error, any()} when Ref::reference(),
+                                 Key::binary()).
 get(Ref, Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -331,8 +345,3 @@ stats() ->
         false ->
             ok
     end.
-
-
-%%====================================================================
-%% INNER FUNCTIONS
-%%====================================================================

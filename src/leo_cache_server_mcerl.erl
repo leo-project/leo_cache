@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Cache - Cherly (RAM Cache)
-%% @doc
+%%
+%% @doc The memory-cache server
+%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_mcerl.erl]
 %% @end
 %%======================================================================
 -module(leo_cache_server_mcerl).
@@ -48,6 +50,7 @@
           file_path    = "" :: file:name_all()
          }).
 
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
@@ -55,7 +58,7 @@
 %%
 -spec(start(Workers, Options) ->
              ok | {error, any()} when Workers::integer(),
-                                      Options::list(tuple())).
+                                      Options::[{atom(), any()}]).
 start(Workers, Options) ->
     CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
     ok = start_1(Workers, erlang:round(CacheCapacity/Workers)),
@@ -64,7 +67,8 @@ start(Workers, Options) ->
 
 %% @doc Stop cache-server(s)
 %%
--spec(stop() -> ok).
+-spec(stop() ->
+             ok).
 stop() ->
     stop_1(?get_workers()).
 
@@ -72,24 +76,30 @@ stop() ->
 %% @doc Retrieve a reference of cached object (for large-object)
 %%
 -spec(get_ref(Id, Key) ->
-             {ok, reference()} | {error, undefined} when Id::integer(),
-                                                         Key::binary()|any()).
+             {ok, reference()} |
+             {error, undefined} when Id::integer(),
+                                     Key::binary()|any()).
 get_ref(_Id, _Key) ->
     {error, undefined}.
+
 
 %% @doc Retrieve a meta data of cached object (for large-object)
 %%
 -spec(get_filepath(Id, Key) ->
-             {ok, #cache_meta{}} | {error, undefined} when Id::integer(),
-                                                           Key::binary()|any()).
+             {ok, #cache_meta{}} |
+             {error, undefined} when Id::integer(),
+                                     Key::binary()|any()).
 
 get_filepath(_Id, _Key) ->
     {error, undefined}.
 
+
 %% @doc Retrieve an object from cache-server
 -spec(get(Id, Key) ->
-             not_found | {ok, binary()} | {error, any()} when Id::integer(),
-                                                              Key::binary()|any()).
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Id::integer(),
+                                 Key::binary()|any()).
 get(Id, Key) ->
     case ?get_handler(?ETS_RAM_CACHE_HANDLERS, Id) of
         undefined ->
@@ -112,11 +122,14 @@ get(Id, Key) ->
 
 %% @doc Retrieve an object from cache-server (for large-object)
 -spec(get(Id, Ref, Key) ->
-             not_found | {ok, binary()} | {error, any()} when Id::integer(),
-                                                              Ref::reference(),
-                                                              Key::binary()|any()). 
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Id::integer(),
+                                 Ref::reference(),
+                                 Key::binary()|any()).
 get(_Id,_Ref,_Key) ->
     not_found.
+
 
 %% @doc Insert an object into the momory storage
 -spec(put(Id, Key, Value) ->
@@ -152,12 +165,14 @@ put(Id, Key, Value) ->
 put(_Id,_Ref,_Key,_Value) ->
     {error, undefined}.
 
+
 %% @doc Start put-transaction for large-object (for large-object)
 -spec(put_begin_tran(Id, Key) ->
              ok | {error, any()} when Id::integer(),
                                       Key::binary()|any()).
 put_begin_tran(_Id,_Key) ->
     {error, undefined}.
+
 
 %% @doc End put-transaction for large-object (for large-object)
 -spec(put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
@@ -168,6 +183,7 @@ put_begin_tran(_Id,_Key) ->
                                       IsCommit::boolean()).
 put_end_tran(_Id,_Ref,_Key,_Meta,_IdCommit) ->
     {error, undefined}.
+
 
 %% @doc Remove an object from the momory storage
 -spec(delete(Id, Key) ->
