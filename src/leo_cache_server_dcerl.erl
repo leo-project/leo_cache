@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Cache - [D]isc [C]ache [Erl]ng
-%% @doc
+%%
+%% @doc The disc-cache server
+%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_dcerl.erl]
 %% @end
 %%======================================================================
 -module(leo_cache_server_dcerl).
@@ -41,13 +43,15 @@
 -define(ID_PREFIX, "leo_dcerl_").
 -define(STR_SLASH, "/").
 
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
 %% @doc Launch cache-server(s)
 %%
--spec(start(integer(), list(tuple())) ->
-             ok | {error, any()}).
+-spec(start(Workers, Options) ->
+             ok | {error, any()} when Workers::integer(),
+                                      Options::[{atom(), any()}]).
 start(Workers, Options) ->
     CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
     DataDir       = leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
@@ -87,14 +91,18 @@ start(Workers, Options) ->
 
 %% @doc Stop cache-server(s)
 %%
--spec(stop() -> ok).
+-spec(stop() ->
+             ok).
 stop() ->
     stop_1(?get_workers()).
 
+
 %% @doc Retrieve a meta data of cached object (for large-object)
 %%
--spec(get_filepath(integer(), binary()) ->
-             {ok, #cache_meta{}} | {error, undefined}).
+-spec(get_filepath(Id, Key) ->
+             {ok, #cache_meta{}} |
+             {error, undefined} when Id::integer(),
+                                     Key::binary()|any()).
 get_filepath(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -114,10 +122,13 @@ get_filepath(Id, Key) ->
             end
     end.
 
+
 %% @doc Retrieve a reference of cached object (for large-object)
 %%
--spec(get_ref(integer(), binary()) ->
-             {ok, reference()} | {error, undefined}).
+-spec(get_ref(Id, Key) ->
+             {ok, reference()} |
+             {error, undefined} when Id::integer(),
+                                     Key::binary()|any()).
 get_ref(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -137,8 +148,11 @@ get_ref(Id, Key) ->
 
 
 %% @doc Retrieve an object from cache-server
--spec(get(integer(), binary()|any()) ->
-             not_found | {ok, binary()} | {error, any()}).
+-spec(get(Id, Key) ->
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Id::integer(),
+                                 Key::binary()|any()).
 get(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -160,8 +174,13 @@ get(Id, Key) ->
 
 
 %% @doc Retrieve an object from cache-server (for large-object)
--spec(get(integer(), reference(), binary()) ->
-             not_found | {ok, binary()} | {error, any()}).
+-spec(get(Id, Ref, Key) ->
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Id::integer(),
+                                 Ref::reference(),
+                                 Key::binary()|any()).
+
 get(Id, Ref, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -185,8 +204,10 @@ get(Id, Ref, Key) ->
 
 
 %% @doc Insert an object into cache-serverx
--spec(put(integer(), binary(), binary()) ->
-             ok | {error, any()}).
+-spec(put(Id, Key, Value) ->
+             ok | {error, any()} when Id::integer(),
+                                      Key::binary()|any(),
+                                      Value::binary()|any()).
 put(Id, Key, Value) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -206,8 +227,11 @@ put(Id, Key, Value) ->
 
 
 %% @doc Insert an object into the cache-server (for large-object)
--spec(put(integer(), reference(), binary()|any(), binary()|any()) ->
-             ok | {error, any()}).
+-spec(put(Id, Ref, Key, Value) ->
+             ok | {error, any()} when Id::integer(),
+                                      Ref::reference(),
+                                      Key::binary()|any(),
+                                      Value::binary()|any()).
 put(Id, Ref, Key, Value) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -227,8 +251,9 @@ put(Id, Ref, Key, Value) ->
 
 
 %% @doc Start put-transaction for large-object (for large-object)
--spec(put_begin_tran(integer(), binary()|any()) ->
-             ok | {error, any()}).
+-spec(put_begin_tran(Id, Key) ->
+             ok | {error, any()} when Id::integer(),
+                                      Key::binary()|any()).
 put_begin_tran(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -248,8 +273,12 @@ put_begin_tran(Id, Key) ->
 
 
 %% @doc End put-transaction for large-object (for large-object)
--spec(put_end_tran(integer(), reference(), binary()|any(), #cache_meta{}, boolean()) ->
-             ok | {error, any()}).
+-spec(put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
+             ok | {error, any()} when Id::integer(),
+                                      Ref::reference(),
+                                      Key::binary()|any(),
+                                      Meta::#cache_meta{},
+                                      IsCommit::boolean()).
 put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -268,8 +297,9 @@ put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
 
 
 %% @doc Remove an object from cache-server
--spec(delete(integer(), binary()) ->
-             ok | {error, any()}).
+-spec(delete(Id, Key) ->
+             ok | {error, any()} when Id::integer(),
+                                      Key::binary()|any()).
 delete(Id, Key) ->
     case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
         undefined ->
@@ -301,8 +331,9 @@ stats() ->
 %%====================================================================
 %% @doc Start Proc(s)
 %% @private
--spec(start_1(non_neg_integer(), [any()]) ->
-             ok).
+-spec(start_1(Id, Params) ->
+             ok when Id::pos_integer(),
+                     Params::[any()]).
 start_1(0, _) ->
     ok;
 start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
@@ -317,8 +348,8 @@ start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
 
 %% @doc Re-launch a process
 %% @private
--spec(restart(pos_integer()) ->
-             ok).
+-spec(restart(Id) ->
+             ok when Id::pos_integer()).
 restart(Id) ->
     ?warn(?MODULE_STRING, "restart/1",
           lists:append(["leo_dcerl-id:", integer_to_list(Id),
@@ -337,8 +368,9 @@ restart(Id) ->
     true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {ProcId, Pid}),
     ok.
 
--spec(restart(pos_integer(), pid()) ->
-             ok).
+-spec(restart(Id, Pid) ->
+             ok when Id::pos_integer(),
+                     Pid::pid()).
 restart(Id, Pid) ->
     case erlang:is_process_alive(Pid) of
         true  -> ok;
@@ -349,8 +381,8 @@ restart(Id, Pid) ->
 
 %% @doc Stop Proc(s)
 %% @private
--spec(stop_1(pos_integer()) ->
-             ok).
+-spec(stop_1(Id) ->
+             ok when Id::pos_integer()).
 stop_1(0) ->
     ok;
 stop_1(Id) ->
@@ -365,8 +397,9 @@ stop_1(Id) ->
 
 %% @doc Retrieve and summarize stats
 %% @private
--spec(stats_1(non_neg_integer(), [#stats{}]) ->
-             {ok, [#stats{}]} | {error, any()}).
+-spec(stats_1(Id, Acc) ->
+             {ok, [#stats{}]} | {error, any()} when Id::non_neg_integer(),
+                                                    Acc::[#stats{}]).
 stats_1(0, Acc) ->
     {ok, lists:foldl(fun([{'get',    G1},{'put', P1},
                           {'delete', D1},{'hits',H1},

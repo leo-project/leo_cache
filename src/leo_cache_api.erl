@@ -20,7 +20,9 @@
 %%
 %% ---------------------------------------------------------------------
 %% Leo Cache
-%% @doc
+%%
+%% @doc The cache API
+%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_dcerl.erl]
 %% @end
 %%======================================================================
 -module(leo_cache_api).
@@ -36,6 +38,7 @@
          put/2, put/3, put_begin_tran/1, put_end_tran/4,
          delete/1, stats/0]).
 
+
 %%-----------------------------------------------------------------------
 %% External API
 %%-----------------------------------------------------------------------
@@ -46,8 +49,8 @@
 start() ->
     start(?DEF_OPTIONS).
 
--spec(start(list(tuple())) ->
-             ok | {error, any()}).
+-spec(start(Options) ->
+             ok | {error, any()} when Options::[{atom(), any()}]).
 start(Options) ->
     ok = leo_misc:init_env(),
     RC = ?gen_mod_name(leo_misc:get_value(?PROP_RAM_CACHE_NAME,  Options)),
@@ -101,7 +104,8 @@ start(Options) ->
 
 %% @doc Stop cache-server(s)
 %%
--spec(stop() -> ok).
+-spec(stop() ->
+             ok).
 stop() ->
     Options = ?get_options(),
     case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
@@ -116,8 +120,10 @@ stop() ->
 
 
 %% @doc Retrieve a reference of cached object (for large-object)
--spec(get_ref(binary()) ->
-             not_found | {ok, binary()} | {error, any()}).
+-spec(get_ref(Key) ->
+             not_found |
+             {ok, reference()} |
+             {error, any()} when Key::binary()).
 get_ref(Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -129,9 +135,12 @@ get_ref(Key) ->
             not_found
     end.
 
+
 %% @doc Retrieve a meta data of cached object (for large-object)
--spec(get_filepath(binary()) ->
-             not_found | {ok, #cache_meta{}} | {error, any()}).
+-spec(get_filepath(Key) ->
+             not_found |
+             {ok, #cache_meta{}} |
+             {error, any()} when Key::binary()).
 get_filepath(Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -143,9 +152,12 @@ get_filepath(Key) ->
             not_found
     end.
 
+
 %% @doc Retrieve an object from the momory storage
--spec(get(binary()) ->
-             not_found | {ok, binary()} | {error, any()}).
+-spec(get(Key) ->
+             not_found |
+             {ok, binary()} |
+             {error, any()} when Key::binary()).
 get(Key) ->
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
@@ -173,8 +185,11 @@ get(Key) ->
 
 %% @doc Retrieve a chunked-object from disc-cache (for large-object)
 %%
--spec(get(reference(), binary()) ->
-             not_found | {ok, {binary(), boolean()}} | {error, any()}).
+-spec(get(Ref, Key) ->
+             not_found |
+             {ok, {binary(), boolean()}} |
+             {error, any()} when Ref::reference(),
+                                 Key::binary()).
 get(Ref, Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -188,8 +203,9 @@ get(Ref, Key) ->
 
 
 %% @doc Insert an object into the momory storage
--spec(put(binary(), binary()) ->
-             ok | {error, any()}).
+-spec(put(Key, Value) ->
+             ok | {error, any()} when Key::binary(),
+                                      Value::binary()).
 put(Key, Value) ->
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
@@ -212,8 +228,10 @@ put(Key, Value) ->
 
 
 %% @doc Insert a chunked-object into the disc
--spec(put(reference(), binary(), binary()) ->
-             ok | {error, any()}).
+-spec(put(Ref, Key, Value) ->
+             ok | {error, any()} when Ref::reference(),
+                                      Key::binary(),
+                                      Value::binary()).
 put(Ref, Key, Value) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -227,8 +245,8 @@ put(Ref, Key, Value) ->
 
 
 %% @doc Insert a chunked-object into the disc
--spec(put_begin_tran(binary()) ->
-             {ok, reference()} | {error, any()}).
+-spec(put_begin_tran(Key) ->
+             {ok, reference()} | {error, any()} when Key::binary()).
 put_begin_tran(Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -242,8 +260,11 @@ put_begin_tran(Key) ->
 
 
 %% @doc Insert a chunked-object into the disc
--spec(put_end_tran(reference(), binary(), #cache_meta{} | undefined, boolean()) ->
-             {ok, reference()} | {error, any()}).
+-spec(put_end_tran(Ref, Key, Meta, IsCommit) ->
+             {ok, reference()} | {error, any()} when Ref::reference(),
+                                                     Key::binary(),
+                                                     Meta::#cache_meta{},
+                                                     IsCommit::boolean()).
 put_end_tran(Ref, Key, Meta, IsCommit) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
@@ -257,8 +278,8 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
 
 
 %% @doc Remove an object from the momory storage
--spec(delete(binary()) ->
-             ok | {error, any()}).
+-spec(delete(Key) ->
+             ok | {error, any()} when Key::binary()).
 delete(Key) ->
     #cache_server{ram_cache_mod     = RC,
                   ram_cache_index   = Id1,
@@ -324,8 +345,3 @@ stats() ->
         false ->
             ok
     end.
-
-
-%%====================================================================
-%% INNER FUNCTIONS
-%%====================================================================
