@@ -63,43 +63,88 @@ start(Options) ->
     IsActiveDiscCache = (is_integer(DiscCacheSize) andalso DiscCacheSize > 0
                          andalso IsActiveRAMCache == true),
 
-    Options1 = Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
-                           {?PROP_DISC_CACHE_MOD, DC},
-                           {?PROP_RAM_CACHE_ACTIVE,  IsActiveRAMCache},
-                           {?PROP_DISC_CACHE_ACTIVE, IsActiveDiscCache}
-                          ],
+    Options_1 = Options ++ [{?PROP_RAM_CACHE_MOD,  RC},
+                            {?PROP_DISC_CACHE_MOD, DC},
+                            {?PROP_RAM_CACHE_ACTIVE,  IsActiveRAMCache},
+                            {?PROP_DISC_CACHE_ACTIVE, IsActiveDiscCache}
+                           ],
+    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options_1),
 
-    ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options1),
-    catch ets:new(?ETS_RAM_CACHE_HANDLERS,  [named_table, set, public, {read_concurrency, true}]),
-    catch ets:new(?ETS_DISC_CACHE_HANDLERS, [named_table, set, public, {read_concurrency, true}]),
-    catch ets:new(?ETS_CACHE_SERVER_INFO,   [named_table, set, public, {read_concurrency, true}]),
+    %% Create the cache-related tables to manage the cache servers
+    case catch start_1() of
+        {'EXIT', Cause} ->
+            {error, Cause};
+        ok ->
+            %% Launch the memory-cache server
+            CacheWorkers =
+                case IsActiveRAMCache of
+                    true ->
+                        Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options_1),
+                        ok = RC:start(Workers1, Options_1),
+                        Workers1;
+                    false ->
+                        0
+                end,
 
-    CacheWorkers =
-        case IsActiveRAMCache of
-            true ->
-                Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options1),
-                ok = RC:start(Workers1, Options1),
-                Workers1;
-            false ->
-                0
-        end,
-    case IsActiveDiscCache of
-        true ->
-            ok = DC:start(CacheWorkers, Options1);
-        false ->
-            void
+            %% Launch the disk-cache server
+            case IsActiveDiscCache of
+                true ->
+                    ok = DC:start(CacheWorkers, Options_1);
+                false ->
+                    void
+            end,
+
+            %% Set the each server's info
+            ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
+            true = ets:insert(?ETS_CACHE_SERVER_INFO,
+                              {0, #cache_server{ram_cache_mod       = RC,
+                                                ram_cache_active    = IsActiveRAMCache,
+                                                disc_cache_mod      = DC,
+                                                disc_cache_active   = IsActiveDiscCache,
+                                                cache_workers       = CacheWorkers,
+                                                chunk_threshold_len = ChunkThresholdLen
+                                               }}),
+            ok
+    end.
+
+%% @private
+start_1() ->
+    case ets:info(?ETS_RAM_CACHE_HANDLERS) of
+        undefined ->
+            case ets:new(?ETS_RAM_CACHE_HANDLERS,
+                         [named_table, set, public, {read_concurrency, true}]) of
+                ?ETS_RAM_CACHE_HANDLERS ->
+                    ok;
+                _ ->
+                    erlang:error({error, could_not_create_ets_table})
+            end;
+        _ ->
+            ok
     end,
-    ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
-
-    true = ets:insert(?ETS_CACHE_SERVER_INFO,
-                      {0, #cache_server{ram_cache_mod       = RC,
-                                        ram_cache_active    = IsActiveRAMCache,
-                                        disc_cache_mod      = DC,
-                                        disc_cache_active   = IsActiveDiscCache,
-                                        cache_workers       = CacheWorkers,
-                                        chunk_threshold_len = ChunkThresholdLen
-                                       }}),
-    ok.
+    case ets:info(?ETS_DISC_CACHE_HANDLERS) of
+        undefined ->
+            case ets:new(?ETS_DISC_CACHE_HANDLERS,
+                         [named_table, set, public, {read_concurrency, true}]) of
+                ?ETS_DISC_CACHE_HANDLERS ->
+                    ok;
+                _ ->
+                    erlang:error({error, could_not_create_ets_table})
+            end;
+        _ ->
+            ok
+    end,
+    case ets:info(?ETS_CACHE_SERVER_INFO) of
+        undefined ->
+            case ets:new(?ETS_CACHE_SERVER_INFO,
+                         [named_table, set, public, {read_concurrency, true}])of
+                ?ETS_CACHE_SERVER_INFO ->
+                    ok;
+                _ ->
+                    erlang:error({error, could_not_create_ets_table})
+            end;
+        _ ->
+            ok
+    end.
 
 
 %% @doc Stop cache-server(s)
