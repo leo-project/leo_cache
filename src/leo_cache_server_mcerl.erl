@@ -22,7 +22,7 @@
 %% Leo Cache - Cherly (RAM Cache)
 %%
 %% @doc The memory-cache server
-%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_mcerl.erl]
+%% @reference https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_mcerl.erl
 %% @end
 %%======================================================================
 -module(leo_cache_server_mcerl).

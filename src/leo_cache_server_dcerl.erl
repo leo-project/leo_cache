@@ -22,7 +22,7 @@
 %% Leo Cache - [D]isc [C]ache [Erl]ng
 %%
 %% @doc The disc-cache server
-%% @reference [https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_dcerl.erl]
+%% @reference https://github.com/leo-project/leo_cache/blob/master/src/leo_cache_server_dcerl.erl
 %% @end
 %%======================================================================
 -module(leo_cache_server_dcerl).
