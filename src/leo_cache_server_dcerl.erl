@@ -53,7 +53,7 @@
              ok | {error, any()} when Workers::integer(),
                                       Options::[{atom(), any()}]).
 start(Workers, Options) ->
-    CacheCapacity = leo_misc:get_value(?PROP_RAM_CACHE_SIZE, Options),
+    CacheCapacity = leo_misc:get_value(?PROP_DISC_CACHE_SIZE, Options),
     DataDir       = leo_misc:get_value(?PROP_DISC_CACHE_DATA_DIR, Options),
     JournalDir    = leo_misc:get_value(?PROP_DISC_CACHE_JOURNAL_DIR, Options),
     ThresholdLen  = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
