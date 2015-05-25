@@ -220,7 +220,7 @@ release(Key)->
             Holder = Item#cache_server.cache_holder,
             leo_cache_holder:release(Holder, Key);
         _ ->
-            void
+            ok
     end.
 
 %% @doc Hold the cache to prevent duplicate retrival
@@ -230,9 +230,14 @@ hold(Key)->
     case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
         [{_, Item}|_] ->
             Holder = Item#cache_server.cache_holder,
-            leo_cache_holder:hold(Holder, Key);
+            case leo_cache_holder:hold(Holder, Key) of
+                {error, _} ->
+                    leo_cache_holder:wait(Holder, Key);
+                {ok, _} ->
+                    ok
+            end;
         _ ->
-            void
+            ok
     end.
 
 %% @doc Hold the cache to prevent duplicate retrival
@@ -243,9 +248,14 @@ hold(Key, HoldTime)->
     case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
         [{_, Item}|_] ->
             Holder = Item#cache_server.cache_holder,
-            leo_cache_holder:hold(Holder, Key, HoldTime);
+            case leo_cache_holder:hold(Holder, Key, HoldTime) of
+                {error, _} ->
+                    leo_cache_holder:wait(Holder, Key);
+                {ok, _} ->
+                    ok
+            end;
         _ ->
-            void
+            ok
     end.
 
 %% @doc Retrieve an object from the momory storage
