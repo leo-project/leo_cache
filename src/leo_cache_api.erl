@@ -33,7 +33,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
--export([start/0, start/1, stop/0, hold/1,
+-export([start/0, start/1, stop/0, 
+         hold/1, hold/2, release/1, 
          get_filepath/1, get_ref/1, get/1, get/2,
          put/2, put/3, put_begin_tran/1, put_end_tran/4,
          delete/1, stats/0]).
@@ -210,6 +211,18 @@ get_filepath(Key) ->
             not_found
     end.
 
+%% @doc Release the holder
+-spec(release(Key) ->
+    {ok, pid()} | {error, any()} when Key::binary()).
+release(Key)->
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Holder = Item#cache_server.cache_holder,
+            leo_cache_holder:release(Holder, Key);
+        _ ->
+            void
+    end.
+
 %% @doc Hold the cache to prevent duplicate retrival
 -spec(hold(Key) -> 
     {ok, pid()} | {error, any()} when Key::binary()).
@@ -218,6 +231,19 @@ hold(Key)->
         [{_, Item}|_] ->
             Holder = Item#cache_server.cache_holder,
             leo_cache_holder:hold(Holder, Key);
+        _ ->
+            void
+    end.
+
+%% @doc Hold the cache to prevent duplicate retrival
+-spec(hold(Key, HoldTime) -> 
+    {ok, pid()} | {error, any()} when Key::binary(),
+                                      HoldTime::integer()).
+hold(Key, HoldTime)->
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Holder = Item#cache_server.cache_holder,
+            leo_cache_holder:hold(Holder, Key, HoldTime);
         _ ->
             void
     end.
