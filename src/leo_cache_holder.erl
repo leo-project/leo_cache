@@ -2,11 +2,14 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-behavior(gen_server).
+
 -export([start/0, stop/1, init/1]).
 -export([hold/2, release/2, wait/2]).
 -export([hold/3, wait/3]).
 -export([handle_call/3]).
 -export([terminate/2]).
+-export([handle_cast/2, handle_info/2, code_change/3]).
 
 -record(state, {db :: ets:tid()}).
 
@@ -49,7 +52,7 @@ wait(Pid, Key, WaitTime) ->
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 handle_call({hold, Key, HoldTime}, _From, State=#state{db = DB})->
-    Pid = spawn_link(fun() ->
+    Pid = spawn(fun() ->
                         receive
                             _Any ->
                                 ets:delete(DB, Key),
@@ -84,3 +87,13 @@ handle_call({release, Key}, _From, State=#state{db = DB}) ->
 
 terminate(normal, _State) ->
     ok.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+%% @doc Convert process state when code is changed
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
