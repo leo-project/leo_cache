@@ -55,7 +55,6 @@ handle_call({hold, Key, HoldTime}, _From, State=#state{db = DB})->
     Pid = spawn(fun() ->
                         receive
                             _Any ->
-                                ets:delete(DB, Key),
                                 ok
                         after
                             HoldTime -> 
@@ -86,6 +85,7 @@ handle_call({release, Key}, _From, State=#state{db = DB}) ->
     case ets:lookup(DB, Key) of
         [{Key, Pid}] ->
             Pid ! {ok},
+            ets:delete(DB, Key),
             {reply, {ok, Pid}, State};
         _ ->
             {reply, {error, not_found}, State}
