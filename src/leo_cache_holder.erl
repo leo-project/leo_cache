@@ -39,7 +39,7 @@ wait(Pid, Key) ->
     wait(Pid, Key, ?DEF_WAIT_TIME).
 wait(Pid, Key, WaitTime) ->
     case gen_server:call(Pid, {lookup, Key}) of
-        {ok, Holder} when is_pid(Pid)->
+        {ok, Holder} when is_pid(Pid) ->
             monitor(process, Holder),
             receive
             after
@@ -72,7 +72,13 @@ handle_call({hold, Key, HoldTime}, _From, State=#state{db = DB})->
 handle_call({lookup, Key}, _From, State=#state{db = DB}) ->
     case ets:lookup(DB, Key) of
         [{Key, Pid}] ->
-            {reply, {ok, Pid}, State};
+            case is_process_alive(Pid) of
+                true ->
+                    {reply, {ok, Pid}, State};
+                false ->
+                    ets:delete(DB, Key),
+                    {reply, {error, ended}, State}
+            end;
         _ ->
             {reply, {error, not_found}, State}
     end;
@@ -85,7 +91,12 @@ handle_call({release, Key}, _From, State=#state{db = DB}) ->
             {reply, {error, not_found}, State}
     end.
 
-terminate(normal, _State) ->
+terminate(normal, _State=#state{db = DB}) ->
+    ets:foldl(fun({_Key, Pid}, Acc) ->
+                      Pid ! {ok},
+                      Acc
+              end, [], DB),
+    ets:match_delete(DB, "_"),
     ok.
 
 handle_cast(_Msg, State) ->
