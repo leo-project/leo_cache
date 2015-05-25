@@ -51,6 +51,9 @@ handle_call(stop, _From, State) ->
 handle_call({hold, Key, HoldTime}, _From, State=#state{db = DB})->
     Pid = spawn_link(fun() ->
                         receive
+                            _Any ->
+                                ets:delete(DB, Key),
+                                ok
                         after
                             HoldTime -> 
                                 ets:delete(DB, Key),
