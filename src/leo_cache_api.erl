@@ -70,6 +70,8 @@ start(Options) ->
                            ],
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options_1),
 
+    {ok, _} = leo_cache_tran:start_link(),
+
     %% Create the cache-related tables to manage the cache servers
     case catch start_1() of
         {'EXIT', Cause} ->
@@ -152,6 +154,7 @@ start_1() ->
 -spec(stop() ->
              ok).
 stop() ->
+    leo_cache_tran:stop(),
     Options = ?get_options(),
     case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
         undefined -> void;

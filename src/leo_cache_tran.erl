@@ -24,6 +24,7 @@
 
 -behaviour(gen_server).
 
+-include("leo_cache.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 
@@ -42,8 +43,6 @@
          terminate/2,
          code_change/3]).
 
--define(TIMEOUT, timer:seconds(5)).
--define(WAITTIME, timer:seconds(10)).
 -define(PROCESSDB, leo_cache_tran_proc_db).
 -define(REPLYDB, leo_cache_tran_reply_db).
 
@@ -63,19 +62,19 @@ stop() ->
 -spec(tran(pid(), atom(), binary()) ->
              ok).
 tran(Pid, Tbl, Key) ->
-    gen_server:call(?MODULE, {tran, Pid, Tbl, Key}, ?TIMEOUT).
+    gen_server:call(?MODULE, {tran, Pid, Tbl, Key}, ?TRAN_TIMEOUT).
 
 
 %% @doc
 -spec(has_tran(atom(), binary()) ->
              {ok, any()} | {error, any()}).
 has_tran(Tbl, Key) ->
-    case catch gen_server:call(?MODULE, {has_tran, Tbl, Key}, ?WAITTIME) of
+    case catch gen_server:call(?MODULE, {has_tran, Tbl, Key}, ?TRAN_WAITTIME) of
         {'EXIT', {timeout, _}} ->
-%%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TIMEOUT),
+%%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TRAN_TIMEOUT),
             {error, timeout};
         {'EXIT', Reason} ->
-%%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TIMEOUT),
+%%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TRAN_TIMEOUT),
             {error, Reason};
         Ret ->
             Ret
@@ -85,7 +84,7 @@ has_tran(Tbl, Key) ->
 -spec(done_tran(atom(), binary())->
             ok).
 done_tran(Tbl, Key) ->
-    gen_server:call(?MODULE, {done_tran, Tbl, Key}, ?TIMEOUT).
+    gen_server:call(?MODULE, {done_tran, Tbl, Key}, ?TRAN_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
@@ -99,10 +98,10 @@ done_tran(Tbl, Key) ->
 init([]) ->
     ets:new(?PROCESSDB, [named_table, set, private]),
     ets:new(?REPLYDB, [named_table, set, private]),
-    {ok, unused, ?TIMEOUT}.
+    {ok, unused, ?TRAN_TIMEOUT}.
 
 handle_call(stop, _From, State) ->
-    {stop, shutdown, ok, State};
+    {stop, normal, ok, State};
 
 %%handle_call({unregister, Tbl, Key}, From, State) ->
 %%    {Pid, _Ref} = From,
@@ -117,29 +116,29 @@ handle_call(stop, _From, State) ->
 %%        _ ->
 %%            void
 %%    end,
-%%    {reply, ok, State, ?TIMEOUT};
+%%    {reply, ok, State, ?TRAN_TIMEOUT};
 
 handle_call({tran, Pid, Tbl, Key}, _From, State) ->
     MonitorRef = erlang:monitor(process, Pid),
     ets:insert(?PROCESSDB, {MonitorRef, {Tbl, Key}}), 
     ets:insert_new(?REPLYDB, {{Tbl, Key}, []}),
-    {reply, ok, State, ?TIMEOUT}; 
+    {reply, ok, State, ?TRAN_TIMEOUT}; 
 
 handle_call({has_tran, Tbl, Key}, From, State) ->
     case ets:lookup(?REPLYDB, {Tbl, Key}) of
         [{{Tbl, Key}, ReplyList}] ->
             ets:insert(?REPLYDB, {{Tbl, Key}, [From | ReplyList]}),
-            {noreply, State, ?TIMEOUT};
+            {noreply, State, ?TRAN_TIMEOUT};
         _ ->
-            {reply, {ok, not_found}, State, ?TIMEOUT}
+            {reply, {ok, not_found}, State, ?TRAN_TIMEOUT}
     end;
 
 handle_call({done_tran, Tbl, Key}, _From, State) ->
     reply_all(Tbl, Key),
-    {reply, ok, State, ?TIMEOUT}.
+    {reply, ok, State, ?TRAN_TIMEOUT}.
 
 handle_cast(_Msg, State) ->
-    {noreply, State, ?TIMEOUT}.
+    {noreply, State, ?TRAN_TIMEOUT}.
 
 
 %% Function: handle_info(Info, State) -> {noreply, State}          |
@@ -157,9 +156,9 @@ handle_info({'DOWN', MonitorRef, _Type, _Pid,_Info}, State) ->
     end,
     ets:delete(?PROCESSDB, MonitorRef),
     erlang:demonitor(MonitorRef),
-    {noreply, State, ?TIMEOUT};
+    {noreply, State, ?TRAN_TIMEOUT};
 handle_info(_Info, State) ->
-    {noreply, State, ?TIMEOUT}.
+    {noreply, State, ?TRAN_TIMEOUT}.
 
 
 %% Function: terminate(Reason, State) -> void()
@@ -168,6 +167,14 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 terminate(_Reason,_State) ->
+    ets:foldl(fun({_Key, ReplyList}, Acc) ->
+                      lists:foreach(fun(Target) ->
+                                            gen_server:reply(Target, {error, terminated})
+                                    end, ReplyList),
+                      Acc
+              end, [], ?REPLYDB),
+    ets:delete(?REPLYDB),
+    ets:delete(?PROCESSDB),
     ok.
 
 
@@ -181,9 +188,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 reply_all(Tbl, Key) ->
     case ets:lookup(?REPLYDB, {Tbl, Key}) of 
-        ReplyList when is_list(ReplyList) ->
+        [{{Tbl, Key}, ReplyList}] when is_list(ReplyList) ->
             lists:foreach(fun(Target) ->
-                                  gen_server:reply(Target, {error, terminated})
+                                  gen_server:reply(Target, {ok, done})
                           end, ReplyList);
         _ ->
             void
