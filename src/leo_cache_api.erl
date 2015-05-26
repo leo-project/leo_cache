@@ -33,7 +33,8 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
--export([start/0, start/1, stop/0,
+-export([start/0, start/1, stop/0, 
+         hold/1, hold/2, release/1, 
          get_filepath/1, get_ref/1, get/1, get/2,
          put/2, put/3, put_begin_tran/1, put_end_tran/4,
          delete/1, stats/0]).
@@ -70,6 +71,8 @@ start(Options) ->
                            ],
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options_1),
 
+    {ok, Holder} = leo_cache_holder:start(),
+
     %% Create the cache-related tables to manage the cache servers
     case catch start_1() of
         {'EXIT', Cause} ->
@@ -77,14 +80,14 @@ start(Options) ->
         ok ->
             %% Launch the memory-cache server
             CacheWorkers =
-                case IsActiveRAMCache of
-                    true ->
-                        Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options_1),
-                        ok = RC:start(Workers1, Options_1),
-                        Workers1;
-                    false ->
-                        0
-                end,
+            case IsActiveRAMCache of
+                true ->
+                    Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options_1),
+                    ok = RC:start(Workers1, Options_1),
+                    Workers1;
+                false ->
+                    0
+            end,
 
             %% Launch the disk-cache server
             case IsActiveDiscCache of
@@ -102,7 +105,8 @@ start(Options) ->
                                                 disc_cache_mod      = DC,
                                                 disc_cache_active   = IsActiveDiscCache,
                                                 cache_workers       = CacheWorkers,
-                                                chunk_threshold_len = ChunkThresholdLen
+                                                chunk_threshold_len = ChunkThresholdLen,
+                                                cache_holder        = Holder
                                                }}),
             ok
     end.
@@ -161,6 +165,14 @@ stop() ->
         undifined -> void;
         DC -> DC:stop()
     end,
+
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Holder = Item#cache_server.cache_holder,
+            leo_cache_holder:stop(Holder);
+        _ ->
+            void
+    end,
     ok.
 
 
@@ -189,7 +201,9 @@ get_ref(Key) ->
 get_filepath(Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
+                  disc_cache_active = Active,
+                  cache_holder      = Holder} = ?cache_servers(Key),
+    leo_cache_holder:wait(Holder, Key),
     case Active of
         true ->
             DC:get_filepath(Id, Key);
@@ -197,6 +211,52 @@ get_filepath(Key) ->
             not_found
     end.
 
+%% @doc Release the holder
+-spec(release(Key) ->
+    {ok, pid()} | {error, any()} when Key::binary()).
+release(Key)->
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Holder = Item#cache_server.cache_holder,
+            leo_cache_holder:release(Holder, Key);
+        _ ->
+            ok
+    end.
+
+%% @doc Hold the cache to prevent duplicate retrival
+-spec(hold(Key) -> 
+    {ok, pid()} | {error, any()} when Key::binary()).
+hold(Key)->
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Holder = Item#cache_server.cache_holder,
+            case leo_cache_holder:hold(Holder, Key) of
+                {error, _} ->
+                    leo_cache_holder:wait(Holder, Key);
+                {ok, _} ->
+                    ok
+            end;
+        _ ->
+            ok
+    end.
+
+%% @doc Hold the cache to prevent duplicate retrival
+-spec(hold(Key, HoldTime) -> 
+    {ok, pid()} | {error, any()} when Key::binary(),
+                                      HoldTime::integer()).
+hold(Key, HoldTime)->
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Holder = Item#cache_server.cache_holder,
+            case leo_cache_holder:hold(Holder, Key, HoldTime) of
+                {error, _} ->
+                    leo_cache_holder:wait(Holder, Key);
+                {ok, _} ->
+                    ok
+            end;
+        _ ->
+            ok
+    end.
 
 %% @doc Retrieve an object from the momory storage
 -spec(get(Key) ->
@@ -209,8 +269,10 @@ get(Key) ->
                   ram_cache_active  = Active1,
                   disc_cache_mod    = DC,
                   disc_cache_index  = Id2,
-                  disc_cache_active = Active2} = ?cache_servers(Key),
+                  disc_cache_active = Active2, 
+                  cache_holder      = Holder} = ?cache_servers(Key),
 
+    leo_cache_holder:wait(Holder, Key),
     case Active1 of
         true ->
             case RC:get(Id1, Key) of
@@ -238,7 +300,9 @@ get(Key) ->
 get(Ref, Key) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
+                  disc_cache_active = Active,
+                  cache_holder      = Holder} = ?cache_servers(Key),
+    leo_cache_holder:wait(Holder, Key),
     case Active of
         true ->
             DC:get(Id, Ref, Key);
@@ -258,19 +322,22 @@ put(Key, Value) ->
                   disc_cache_mod    = DC,
                   disc_cache_index  = Id2,
                   disc_cache_active = Active2,
-                  chunk_threshold_len = ChunkThresholdLen} = ?cache_servers(Key),
+                  chunk_threshold_len = ChunkThresholdLen,
+                  cache_holder      = Holder} = ?cache_servers(Key),
 
-    case (size(Value) < ChunkThresholdLen) of
-        true when Active1 == true ->
-            RC:put(Id1, Key, Value);
-        true ->
-            ok;
-        false when Active2 == true ->
-            DC:put(Id2, Key, Value);
-        false ->
-            ok
-    end.
+    Ret = case (size(Value) < ChunkThresholdLen) of
+              true when Active1 == true ->
+                  RC:put(Id1, Key, Value);
+              true ->
+                  ok;
+              false when Active2 == true ->
+                  DC:put(Id2, Key, Value);
+              false ->
+                  ok
+          end,
 
+    leo_cache_holder:release(Holder, Key),
+    Ret.
 
 %% @doc Insert a chunked-object into the disc
 -spec(put(Ref, Key, Value) ->
@@ -313,13 +380,17 @@ put_begin_tran(Key) ->
 put_end_tran(Ref, Key, Meta, IsCommit) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
-            DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
-        false ->
-            {error, ?ERROR_INVALID_OPERATION}
-    end.
+                  disc_cache_active = Active,
+                  cache_holder = Holder} = ?cache_servers(Key),
+    Ret = case Active of
+              true ->
+                  DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
+              false ->
+                  {error, ?ERROR_INVALID_OPERATION}
+          end,
+
+    leo_cache_holder:release(Holder, Key),
+    Ret.
 
 
 %% @doc Remove an object from the momory storage

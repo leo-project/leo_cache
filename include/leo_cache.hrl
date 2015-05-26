@@ -101,7 +101,8 @@
                        disc_cache_mod      :: atom(),
                        disc_cache_active   :: boolean(),
                        cache_workers       :: pos_integer(),
-                       chunk_threshold_len :: pos_integer()
+                       chunk_threshold_len :: pos_integer(),
+                       cache_holder        :: pid()
                       }).
 
 -record(stats,  {get     = 0 :: non_neg_integer(),
