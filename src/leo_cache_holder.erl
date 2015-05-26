@@ -42,6 +42,8 @@ wait(Pid, Key, WaitTime) ->
         {ok, Holder} when is_pid(Pid) ->
             monitor(process, Holder),
             receive
+                _Any ->
+                    ok
             after
                 WaitTime -> ok
             end;
