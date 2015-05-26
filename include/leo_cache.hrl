@@ -71,6 +71,8 @@
                       {?PROP_DISC_CACHE_DATA_DIR,      ?DEF_PROP_DISC_CACHE_DATA_DIR},
                       {?PROP_DISC_CACHE_JOURNAL_DIR,   ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
                      ]).
+-define(TRAN_TIMEOUT,   1000).
+-define(TRAN_WAITTIME,  1000).
 -else.
 -define(DEF_OPTIONS, [
                       {?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
@@ -84,6 +86,8 @@
                       {?PROP_DISC_CACHE_DATA_DIR,      ?DEF_PROP_DISC_CACHE_DATA_DIR},
                       {?PROP_DISC_CACHE_JOURNAL_DIR,   ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
                      ]).
+-define(TRAN_TIMEOUT,   1000).
+-define(TRAN_WAITTIME, 10000).
 -endif.
 
 

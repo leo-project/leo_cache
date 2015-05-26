@@ -70,6 +70,8 @@ start(Options) ->
                            ],
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options_1),
 
+    {ok, _} = leo_cache_tran:start_link(),
+
     %% Create the cache-related tables to manage the cache servers
     case catch start_1() of
         {'EXIT', Cause} ->
@@ -152,6 +154,7 @@ start_1() ->
 -spec(stop() ->
              ok).
 stop() ->
+    leo_cache_tran:stop(),
     Options = ?get_options(),
     case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
         undefined -> void;
@@ -192,6 +195,7 @@ get_filepath(Key) ->
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
+            leo_cache_tran:has_tran(object, Key),
             DC:get_filepath(Id, Key);
         false ->
             not_found
@@ -213,6 +217,7 @@ get(Key) ->
 
     case Active1 of
         true ->
+            leo_cache_tran:has_tran(object, Key),
             case RC:get(Id1, Key) of
                 {ok, Bin} ->
                     {ok, Bin};
@@ -260,16 +265,18 @@ put(Key, Value) ->
                   disc_cache_active = Active2,
                   chunk_threshold_len = ChunkThresholdLen} = ?cache_servers(Key),
 
-    case (size(Value) < ChunkThresholdLen) of
-        true when Active1 == true ->
-            RC:put(Id1, Key, Value);
-        true ->
-            ok;
-        false when Active2 == true ->
-            DC:put(Id2, Key, Value);
-        false ->
-            ok
-    end.
+    Ret = case (size(Value) < ChunkThresholdLen) of
+              true when Active1 == true ->
+                  RC:put(Id1, Key, Value);
+              true ->
+                  ok;
+              false when Active2 == true ->
+                  DC:put(Id2, Key, Value);
+              false ->
+                  ok
+          end,
+    leo_cache_tran:done_tran(object, Key),
+    Ret.
 
 
 %% @doc Insert a chunked-object into the disc
@@ -314,12 +321,14 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
                   disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
-            DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
-        false ->
-            {error, ?ERROR_INVALID_OPERATION}
-    end.
+    Ret = case Active of
+              true ->
+                  DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
+              false ->
+                  {error, ?ERROR_INVALID_OPERATION}
+          end,
+    leo_cache_tran:done_tran(object, Key),
+    Ret.
 
 
 %% @doc Remove an object from the momory storage
