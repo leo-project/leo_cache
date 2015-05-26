@@ -192,6 +192,7 @@ get_filepath(Key) ->
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
+            leo_cache_tran:has_tran(object, Key),
             DC:get_filepath(Id, Key);
         false ->
             not_found
@@ -213,6 +214,7 @@ get(Key) ->
 
     case Active1 of
         true ->
+            leo_cache_tran:has_tran(object, Key),
             case RC:get(Id1, Key) of
                 {ok, Bin} ->
                     {ok, Bin};
