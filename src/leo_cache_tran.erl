@@ -69,7 +69,13 @@ tran(Pid, Tbl, Key) ->
 -spec(has_tran(atom(), binary()) ->
              {ok, any()} | {error, any()}).
 has_tran(Tbl, Key) ->
-    case catch gen_server:call(?MODULE, {has_tran, Tbl, Key}, ?TRAN_WAITTIME) of
+    has_tran(Tbl, Key, ?TRAN_WAITTIME).
+
+%% @doc
+-spec(has_tran(atom(), binary(), integer()) ->
+             {ok, any()} | {error, any()}).
+has_tran(Tbl, Key, Waittime) ->
+    case catch gen_server:call(?MODULE, {has_tran, Tbl, Key}, Waittime) of
         {'EXIT', {timeout, _}} ->
 %%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TRAN_TIMEOUT),
             {error, timeout};
@@ -97,8 +103,18 @@ done_tran(Tbl, Key) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 init([]) ->
-    ets:new(?PROCESSDB, [named_table, set, private]),
-    ets:new(?REPLYDB, [named_table, set, private]),
+    case ets:new(?PROCESSDB, [named_table, set, private]) of
+        ?PROCESSDB ->
+            ok;
+        _ ->
+            erlang:error({error, could_not_create_ets_table})
+    end,
+    case ets:new(?REPLYDB, [named_table, set, private]) of
+        ?REPLYDB ->
+            ok;
+        _ ->
+            erlang:error({error, could_not_create_ets_table})
+    end,
     {ok, unused, ?TRAN_TIMEOUT}.
 
 handle_call(stop, _From, State) ->
@@ -108,12 +124,10 @@ handle_call(stop, _From, State) ->
 %%    {Pid, _Ref} = From,
 %%    case ets:lookup(?REPLYDB, {Tbl, Key}) of
 %%        [{{Tbl, Key}, ReplyList}] ->
-%%            ?debugVal(ReplyList),
 %%            ReplyList2 = lists:filter(fun({Pid2, _Ref2}) ->
 %%                                              Pid2 =/= Pid
 %%                                      end, ReplyList),
-%%            ?debugVal(ReplyList2),
-%%            ets:insert(?REPLYDB, {{Tbl, Key}, ReplyList2});
+%%            true = ets:insert(?REPLYDB, {{Tbl, Key}, ReplyList2});
 %%        _ ->
 %%            void
 %%    end,
@@ -121,14 +135,18 @@ handle_call(stop, _From, State) ->
 
 handle_call({tran, Pid, Tbl, Key}, _From, State) ->
     MonitorRef = erlang:monitor(process, Pid),
-    ets:insert(?PROCESSDB, {MonitorRef, {Tbl, Key}}), 
-    ets:insert_new(?REPLYDB, {{Tbl, Key}, []}),
-    {reply, ok, State, ?TRAN_TIMEOUT}; 
+    true = ets:insert(?PROCESSDB, {MonitorRef, {Tbl, Key}}), 
+    case ets:insert_new(?REPLYDB, {{Tbl, Key}, []}) of
+        true ->
+            {reply, ok, State, ?TRAN_TIMEOUT}; 
+        false ->
+            {reply, {error, duplicated}, State, ?TRAN_TIMEOUT}
+    end;
 
 handle_call({has_tran, Tbl, Key}, From, State) ->
     case ets:lookup(?REPLYDB, {Tbl, Key}) of
         [{{Tbl, Key}, ReplyList}] ->
-            ets:insert(?REPLYDB, {{Tbl, Key}, [From | ReplyList]}),
+            true = ets:insert(?REPLYDB, {{Tbl, Key}, [From | ReplyList]}),
             {noreply, State, ?TRAN_TIMEOUT};
         _ ->
             {reply, {ok, not_found}, State, ?TRAN_TIMEOUT}
@@ -158,8 +176,8 @@ handle_info({'DOWN', MonitorRef, _Type, _Pid,_Info}, State) ->
         _ ->
             void
     end,
-    ets:delete(?PROCESSDB, MonitorRef),
-    erlang:demonitor(MonitorRef),
+    true = ets:delete(?PROCESSDB, MonitorRef),
+    true = erlang:demonitor(MonitorRef),
     {noreply, State, ?TRAN_TIMEOUT};
 handle_info(_Info, State) ->
     {noreply, State, ?TRAN_TIMEOUT}.
@@ -177,8 +195,6 @@ terminate(_Reason,_State) ->
                                     end, ReplyList),
                       Acc
               end, [], ?REPLYDB),
-    ets:delete(?REPLYDB),
-    ets:delete(?PROCESSDB),
     ok.
 
 
@@ -199,4 +215,4 @@ reply_all(Tbl, Key) ->
         _ ->
             void
     end,
-    ets:delete(?REPLYDB, {Tbl, Key}).
+    true = ets:delete(?REPLYDB, {Tbl, Key}).
