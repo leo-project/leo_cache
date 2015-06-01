@@ -42,10 +42,12 @@ cache_test_() ->
                           ]]}.
 
 setup() ->
+    ok = application:start(leo_cache),
     os:cmd("rm -rf ./cache"),
     ok.
 
 teardown(_) ->
+    ok = application:stop(leo_cache),
     ok.
 
 %% for RAM Cache
@@ -60,6 +62,7 @@ suite_1_(_) ->
                 {?PROP_DISC_CACHE_DATA_DIR,    ?DEF_PROP_DISC_CACHE_DATA_DIR},
                 {?PROP_DISC_CACHE_JOURNAL_DIR, ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
                ],
+    ?debugVal(Options),
     leo_cache_api:start(Options),
 
     Key1 = <<"photo/image/hawaii-0.png">>,
