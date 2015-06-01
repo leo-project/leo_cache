@@ -227,7 +227,7 @@ start_1(0, _) ->
     ok;
 start_1(Id, CacheCapacity) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
-    {ok, Pid} = leo_mcerl_server:start_link(ProcId, CacheCapacity),
+    {ok, Pid} = leo_mcerl_sup:start_child(ProcId, CacheCapacity),
     true = ets:insert(?ETS_RAM_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, CacheCapacity).
 
