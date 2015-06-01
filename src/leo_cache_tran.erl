@@ -84,7 +84,8 @@ has_tran(Tbl, Key) ->
 -spec(done_tran(atom(), binary())->
             ok).
 done_tran(Tbl, Key) ->
-    gen_server:call(?MODULE, {done_tran, Tbl, Key}, ?TRAN_TIMEOUT).
+    gen_server:cast(?MODULE, {done_tran, Tbl, Key}).
+%    gen_server:call(?MODULE, {done_tran, Tbl, Key}, ?TRAN_TIMEOUT).
 
 
 %%--------------------------------------------------------------------
@@ -137,8 +138,11 @@ handle_call({done_tran, Tbl, Key}, _From, State) ->
     reply_all(Tbl, Key),
     {reply, ok, State, ?TRAN_TIMEOUT}.
 
+handle_cast({done_tran, Tbl, Key}, State) ->
+    reply_all(Tbl, Key),
+    {noreply, State};
 handle_cast(_Msg, State) ->
-    {noreply, State, ?TRAN_TIMEOUT}.
+    {noreply, State}.
 
 
 %% Function: handle_info(Info, State) -> {noreply, State}          |
