@@ -79,6 +79,7 @@ start(Workers, Options) ->
                             |lists:delete({?PROP_DISC_CACHE_JOURNAL_DIR, JournalDir}, Options2)],
                 {JournalDir1, Options3}
         end,
+    ?debugVal(Options4),
 
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options4),
     Params = [DataDir2,
@@ -340,7 +341,9 @@ start_1(Id, [DataDir, JournalDir, CacheCapacity, ThresholdLen] = Params) ->
     ProcId = ?gen_proc_id(Id, ?ID_PREFIX),
     DataDir1 = lists:append([DataDir, integer_to_list(Id), ?STR_SLASH]),
     JournalDir1 = lists:append([JournalDir, integer_to_list(Id), ?STR_SLASH]),
-    {ok, Pid} = leo_dcerl_server:start_link(
+    %% {ok, Pid} = leo_dcerl_server:start_link(
+    %%               ProcId, DataDir1, JournalDir1, CacheCapacity, ThresholdLen),
+    {ok, Pid} = leo_dcerl_sup:start_child(
                   ProcId, DataDir1, JournalDir1, CacheCapacity, ThresholdLen),
     true = ets:insert(?ETS_DISC_CACHE_HANDLERS, {Id, Pid}),
     start_1(Id - 1, Params).

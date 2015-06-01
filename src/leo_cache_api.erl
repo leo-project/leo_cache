@@ -70,83 +70,36 @@ start(Options) ->
                            ],
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options_1),
 
-    {ok, _} = leo_cache_tran:start_link(),
+    %% Launch the memory-cache server
+    CacheWorkers =
+        case IsActiveRAMCache of
+            true ->
+                Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options_1),
+                ok = RC:start(Workers1, Options_1),
+                Workers1;
+            false ->
+                0
+        end,
 
-    %% Create the cache-related tables to manage the cache servers
-    case catch start_1() of
-        {'EXIT', Cause} ->
-            {error, Cause};
-        ok ->
-            %% Launch the memory-cache server
-            CacheWorkers =
-                case IsActiveRAMCache of
-                    true ->
-                        Workers1 = leo_misc:get_value(?PROP_RAM_CACHE_WORKERS, Options_1),
-                        ok = RC:start(Workers1, Options_1),
-                        Workers1;
-                    false ->
-                        0
-                end,
-
-            %% Launch the disk-cache server
-            case IsActiveDiscCache of
-                true ->
-                    ok = DC:start(CacheWorkers, Options_1);
-                false ->
-                    void
-            end,
-
-            %% Set the each server's info
-            ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
-            true = ets:insert(?ETS_CACHE_SERVER_INFO,
-                              {0, #cache_server{ram_cache_mod       = RC,
-                                                ram_cache_active    = IsActiveRAMCache,
-                                                disc_cache_mod      = DC,
-                                                disc_cache_active   = IsActiveDiscCache,
-                                                cache_workers       = CacheWorkers,
-                                                chunk_threshold_len = ChunkThresholdLen
-                                               }}),
-            ok
-    end.
-
-%% @private
-start_1() ->
-    case ets:info(?ETS_RAM_CACHE_HANDLERS) of
-        undefined ->
-            case ets:new(?ETS_RAM_CACHE_HANDLERS,
-                         [named_table, set, public, {read_concurrency, true}]) of
-                ?ETS_RAM_CACHE_HANDLERS ->
-                    ok;
-                _ ->
-                    erlang:error({error, could_not_create_ets_table})
-            end;
-        _ ->
-            ok
+    %% Launch the disk-cache server
+    case IsActiveDiscCache of
+        true ->
+            ok = DC:start(CacheWorkers, Options_1);
+        false ->
+            void
     end,
-    case ets:info(?ETS_DISC_CACHE_HANDLERS) of
-        undefined ->
-            case ets:new(?ETS_DISC_CACHE_HANDLERS,
-                         [named_table, set, public, {read_concurrency, true}]) of
-                ?ETS_DISC_CACHE_HANDLERS ->
-                    ok;
-                _ ->
-                    erlang:error({error, could_not_create_ets_table})
-            end;
-        _ ->
-            ok
-    end,
-    case ets:info(?ETS_CACHE_SERVER_INFO) of
-        undefined ->
-            case ets:new(?ETS_CACHE_SERVER_INFO,
-                         [named_table, set, public, {read_concurrency, true}])of
-                ?ETS_CACHE_SERVER_INFO ->
-                    ok;
-                _ ->
-                    erlang:error({error, could_not_create_ets_table})
-            end;
-        _ ->
-            ok
-    end.
+
+    %% Set the each server's info
+    ChunkThresholdLen = leo_misc:get_value(?PROP_DISC_CACHE_THRESHOLD_LEN, Options),
+    true = ets:insert(?ETS_CACHE_SERVER_INFO,
+                      {0, #cache_server{ram_cache_mod       = RC,
+                                        ram_cache_active    = IsActiveRAMCache,
+                                        disc_cache_mod      = DC,
+                                        disc_cache_active   = IsActiveDiscCache,
+                                        cache_workers       = CacheWorkers,
+                                        chunk_threshold_len = ChunkThresholdLen
+                                       }}),
+    ok.
 
 
 %% @doc Stop cache-server(s)
