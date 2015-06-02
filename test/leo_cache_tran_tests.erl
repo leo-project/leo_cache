@@ -37,22 +37,22 @@ lock_test() ->
     leo_cache_tran:start_link(),
 
     ?debugMsg(" * Lock   {object, 1}"),
-    leo_cache_tran:tran(self(), object, 1),
+    leo_cache_tran:begin_tran(object, 1),
 
     ?debugMsg(" * Check  {object, 1} (timeout)"),
-    {error, timeout} = leo_cache_tran:has_tran(object, 1),
+    {error, timeout} = leo_cache_tran:wait_tran(object, 1),
 
     ?debugMsg(" * Check  {object, 2} (not found)"),
-    {ok, not_found} = leo_cache_tran:has_tran(object, 2),
+    {ok, not_found} = leo_cache_tran:wait_tran(object, 2),
 
     ?debugMsg(" * Unlock {object, 1} after short delay"),
-    timer:apply_after(200, leo_cache_tran, done_tran, [object, 1]),
+    timer:apply_after(200, leo_cache_tran, end_tran, [object, 1]),
 
     ?debugMsg(" * Check  {object, 1} (done)"),
-    {ok, done} = leo_cache_tran:has_tran(object, 1),
+    {ok, done} = leo_cache_tran:wait_tran(object, 1),
 
     ?debugMsg(" * Check  {object, 1} (not found)"),
-    {ok, not_found} = leo_cache_tran:has_tran(object, 1),
+    {ok, not_found} = leo_cache_tran:wait_tran(object, 1),
 
     leo_cache_tran:stop(),
     ok.

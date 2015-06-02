@@ -32,9 +32,9 @@
 -export([start_link/0,
          stop/0]).
 
--export([tran/3,
-         has_tran/2,
-         done_tran/2]).
+-export([begin_tran/2,
+         wait_tran/2, wait_tran/3,
+         end_tran/2]).
 
 -export([init/1,
          handle_call/3,
@@ -45,6 +45,7 @@
 
 -define(PROCESSDB, leo_cache_tran_proc_db).
 -define(REPLYDB, leo_cache_tran_reply_db).
+-define(MONITORDB, leo_cache_tran_monitor_db).
 
 
 %%--------------------------------------------------------------------
@@ -58,34 +59,41 @@ start_link() ->
 stop() ->
     gen_server:call(?MODULE, stop).
 
-%% @doc
--spec(tran(pid(), atom(), binary()) ->
-             ok).
-tran(Pid, Tbl, Key) ->
-    gen_server:call(?MODULE, {tran, Pid, Tbl, Key}, ?TRAN_TIMEOUT).
+%% @doc Try obtain the Cache Lock
+-spec(begin_tran(Tbl, Key) ->
+             ok | {error, in_process} when Tbl::atom(),
+                                           Key::any()).
+begin_tran(Tbl, Key) ->
+    gen_server:call(?MODULE, {begin_tran, Tbl, Key}, ?TRAN_TIMEOUT).
 
 
-%% @doc
--spec(has_tran(atom(), binary()) ->
-             {ok, any()} | {error, any()}).
-has_tran(Tbl, Key) ->
-    case catch gen_server:call(?MODULE, {has_tran, Tbl, Key}, ?TRAN_WAITTIME) of
+%% @doc Wait for the Cache Lock
+-spec(wait_tran(Tbl, Key) ->
+             {ok, any()} | {error, any()} when Tbl::atom(),
+                                               Key::binary()).
+wait_tran(Tbl, Key) ->
+    wait_tran(Tbl, Key, ?TRAN_WAITTIME).
+
+-spec(wait_tran(Tbl, Key, WaitTime) ->
+             {ok, any()} | {error, any()} when Tbl::atom(),
+                                               Key::any(),
+                                               WaitTime::integer()).
+wait_tran(Tbl, Key, WaitTime) ->
+    case catch gen_server:call(?MODULE, {wait_tran, Tbl, Key}, WaitTime) of
         {'EXIT', {timeout, _}} ->
-%%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TRAN_TIMEOUT),
             {error, timeout};
         {'EXIT', Reason} ->
-%%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TRAN_TIMEOUT),
             {error, Reason};
         Ret ->
             Ret
     end.
 
-%% @doc
--spec(done_tran(atom(), binary())->
-            ok).
-done_tran(Tbl, Key) ->
-    gen_server:cast(?MODULE, {done_tran, Tbl, Key}).
-%    gen_server:call(?MODULE, {done_tran, Tbl, Key}, ?TRAN_TIMEOUT).
+%% @doc Release the Cache Lock
+-spec(end_tran(Tbl, Key)->
+            ok when Tbl::atom(),
+                    Key::any()).
+end_tran(Tbl, Key) ->
+    gen_server:cast(?MODULE, {end_tran, Tbl, Key}).
 
 
 %%--------------------------------------------------------------------
@@ -99,46 +107,41 @@ done_tran(Tbl, Key) ->
 init([]) ->
     ets:new(?PROCESSDB, [named_table, set, private]),
     ets:new(?REPLYDB, [named_table, set, private]),
+    ets:new(?MONITORDB, [named_table, set, private]),
     {ok, unused, ?TRAN_TIMEOUT}.
 
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 
-%%handle_call({unregister, Tbl, Key}, From, State) ->
-%%    {Pid, _Ref} = From,
-%%    case ets:lookup(?REPLYDB, {Tbl, Key}) of
-%%        [{{Tbl, Key}, ReplyList}] ->
-%%            ?debugVal(ReplyList),
-%%            ReplyList2 = lists:filter(fun({Pid2, _Ref2}) ->
-%%                                              Pid2 =/= Pid
-%%                                      end, ReplyList),
-%%            ?debugVal(ReplyList2),
-%%            ets:insert(?REPLYDB, {{Tbl, Key}, ReplyList2});
-%%        _ ->
-%%            void
-%%    end,
-%%    {reply, ok, State, ?TRAN_TIMEOUT};
+handle_call({begin_tran, Tbl, Key}, {Pid, _Tag}, State) ->
+    case ets:insert_new(?REPLYDB, {{Tbl, Key}, []}) of
+        true ->
+            MonitorRef = erlang:monitor(process, Pid),
+            ets:insert(?PROCESSDB, {MonitorRef, {Tbl, Key}}), 
+            ets:insert(?MONITORDB, {{Tbl, Key}, MonitorRef}),
+            {reply, ok, State, ?TRAN_TIMEOUT};
+        false ->
+            {reply, {error, in_process}, State, ?TRAN_TIMEOUT}
+    end;
 
-handle_call({tran, Pid, Tbl, Key}, _From, State) ->
-    MonitorRef = erlang:monitor(process, Pid),
-    ets:insert(?PROCESSDB, {MonitorRef, {Tbl, Key}}), 
-    ets:insert_new(?REPLYDB, {{Tbl, Key}, []}),
-    {reply, ok, State, ?TRAN_TIMEOUT}; 
-
-handle_call({has_tran, Tbl, Key}, From, State) ->
+handle_call({wait_tran, Tbl, Key}, From, State) ->
     case ets:lookup(?REPLYDB, {Tbl, Key}) of
         [{{Tbl, Key}, ReplyList}] ->
             ets:insert(?REPLYDB, {{Tbl, Key}, [From | ReplyList]}),
             {noreply, State, ?TRAN_TIMEOUT};
         _ ->
             {reply, {ok, not_found}, State, ?TRAN_TIMEOUT}
-    end;
+    end.
 
-handle_call({done_tran, Tbl, Key}, _From, State) ->
-    reply_all(Tbl, Key),
-    {reply, ok, State, ?TRAN_TIMEOUT}.
-
-handle_cast({done_tran, Tbl, Key}, State) ->
+handle_cast({end_tran, Tbl, Key}, State) ->
+    case ets:lookup(?MONITORDB, {Tbl, Key}) of
+        [{{Tbl, Key}, MonitorRef}] ->
+            erlang:demonitor(MonitorRef),
+            ets:delete(?PROCESSDB, MonitorRef),
+            ets:delete(?MONITORDB, {Tbl, Key});
+        _ ->
+            void
+    end,
     reply_all(Tbl, Key),
     {noreply, State};
 handle_cast(_Msg, State) ->
@@ -154,6 +157,7 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', MonitorRef, _Type, _Pid,_Info}, State) ->
     case ets:lookup(?PROCESSDB, MonitorRef) of
         [{MonitorRef, {Tbl, Key}}] ->
+            ets:delete(?MONITORDB, {Tbl, Key}),
             reply_all(Tbl, Key);
         _ ->
             void
@@ -177,8 +181,6 @@ terminate(_Reason,_State) ->
                                     end, ReplyList),
                       Acc
               end, [], ?REPLYDB),
-    ets:delete(?REPLYDB),
-    ets:delete(?PROCESSDB),
     ok.
 
 
