@@ -148,7 +148,7 @@ get_filepath(Key) ->
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
-            leo_cache_tran:has_tran(object, Key),
+%            leo_cache_tran:has_tran(object, Key),
             DC:get_filepath(Id, Key);
         false ->
             not_found
@@ -170,7 +170,7 @@ get(Key) ->
 
     case Active1 of
         true ->
-            leo_cache_tran:has_tran(object, Key),
+%            leo_cache_tran:has_tran(object, Key),
             case RC:get(Id1, Key) of
                 {ok, Bin} ->
                     {ok, Bin};
@@ -228,7 +228,7 @@ put(Key, Value) ->
               false ->
                   ok
           end,
-    leo_cache_tran:done_tran(object, Key),
+%    leo_cache_tran:done_tran(object, Key),
     Ret.
 
 
@@ -280,7 +280,7 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
               false ->
                   {error, ?ERROR_INVALID_OPERATION}
           end,
-    leo_cache_tran:done_tran(object, Key),
+%    leo_cache_tran:done_tran(object, Key),
     Ret.
 
 
