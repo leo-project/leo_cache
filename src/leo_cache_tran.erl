@@ -32,9 +32,9 @@
 -export([start_link/0,
          stop/0]).
 
--export([tran/3,
-         has_tran/2,
-         done_tran/2]).
+-export([begin_tran/3,
+         wait_tran/2, wait_tran/3,
+         end_tran/2]).
 
 -export([init/1,
          handle_call/3,
@@ -59,23 +59,23 @@ stop() ->
     gen_server:call(?MODULE, stop).
 
 %% @doc
--spec(tran(pid(), atom(), binary()) ->
-             ok).
-tran(Pid, Tbl, Key) ->
-    gen_server:call(?MODULE, {tran, Pid, Tbl, Key}, ?TRAN_TIMEOUT).
+-spec(begin_tran(pid(), atom(), binary()) ->
+             ok | {error, in_process}).
+begin_tran(Pid, Tbl, Key) ->
+    gen_server:call(?MODULE, {begin_tran, Pid, Tbl, Key}, ?TRAN_TIMEOUT).
 
 
 %% @doc
--spec(has_tran(atom(), binary()) ->
+-spec(wait_tran(atom(), binary()) ->
              {ok, any()} | {error, any()}).
-has_tran(Tbl, Key) ->
-    has_tran(Tbl, Key, ?TRAN_WAITTIME).
+wait_tran(Tbl, Key) ->
+    wait_tran(Tbl, Key, ?TRAN_WAITTIME).
 
 %% @doc
--spec(has_tran(atom(), binary(), integer()) ->
+-spec(wait_tran(atom(), binary(), integer()) ->
              {ok, any()} | {error, any()}).
-has_tran(Tbl, Key, Waittime) ->
-    case catch gen_server:call(?MODULE, {has_tran, Tbl, Key}, Waittime) of
+wait_tran(Tbl, Key, Waittime) ->
+    case catch gen_server:call(?MODULE, {wait_tran, Tbl, Key}, Waittime) of
         {'EXIT', {timeout, _}} ->
 %%            gen_server:call(?MODULE, {unregister, Tbl, Key}, ?TRAN_TIMEOUT),
             {error, timeout};
@@ -87,11 +87,10 @@ has_tran(Tbl, Key, Waittime) ->
     end.
 
 %% @doc
--spec(done_tran(atom(), binary())->
+-spec(end_tran(atom(), binary())->
             ok).
-done_tran(Tbl, Key) ->
-    gen_server:cast(?MODULE, {done_tran, Tbl, Key}).
-%    gen_server:call(?MODULE, {done_tran, Tbl, Key}, ?TRAN_TIMEOUT).
+end_tran(Tbl, Key) ->
+    gen_server:cast(?MODULE, {end_tran, Tbl, Key}).
 
 
 %%--------------------------------------------------------------------
@@ -133,17 +132,17 @@ handle_call(stop, _From, State) ->
 %%    end,
 %%    {reply, ok, State, ?TRAN_TIMEOUT};
 
-handle_call({tran, Pid, Tbl, Key}, _From, State) ->
+handle_call({begin_tran, Pid, Tbl, Key}, _From, State) ->
     MonitorRef = erlang:monitor(process, Pid),
     true = ets:insert(?PROCESSDB, {MonitorRef, {Tbl, Key}}), 
     case ets:insert_new(?REPLYDB, {{Tbl, Key}, []}) of
         true ->
-            {reply, ok, State, ?TRAN_TIMEOUT}; 
+            {reply, ok, State, ?TRAN_TIMEOUT};
         false ->
-            {reply, {error, duplicated}, State, ?TRAN_TIMEOUT}
+            {reply, {error, in_process}, State, ?TRAN_TIMEOUT}
     end;
 
-handle_call({has_tran, Tbl, Key}, From, State) ->
+handle_call({wait_tran, Tbl, Key}, From, State) ->
     case ets:lookup(?REPLYDB, {Tbl, Key}) of
         [{{Tbl, Key}, ReplyList}] ->
             true = ets:insert(?REPLYDB, {{Tbl, Key}, [From | ReplyList]}),
@@ -152,11 +151,11 @@ handle_call({has_tran, Tbl, Key}, From, State) ->
             {reply, {ok, not_found}, State, ?TRAN_TIMEOUT}
     end;
 
-handle_call({done_tran, Tbl, Key}, _From, State) ->
+handle_call({end_tran, Tbl, Key}, _From, State) ->
     reply_all(Tbl, Key),
     {reply, ok, State, ?TRAN_TIMEOUT}.
 
-handle_cast({done_tran, Tbl, Key}, State) ->
+handle_cast({end_tran, Tbl, Key}, State) ->
     reply_all(Tbl, Key),
     {noreply, State};
 handle_cast(_Msg, State) ->
