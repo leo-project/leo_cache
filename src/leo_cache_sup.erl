@@ -107,7 +107,14 @@ init([]) ->
                  permanent,
                  ?SHUTDOWN_WAITING_TIME,
                  supervisor,
-                 [leo_dcerl_sup]}
+                 [leo_dcerl_sup]},
+
+                {leo_cache_tran,
+                 {leo_cache_tran, start_link, []},
+                 permanent,
+                 ?SHUTDOWN_WAITING_TIME,
+                 supervisor,
+                 [leo_cache_tran]}
                ],
     {ok, {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME}, Children}}.
 

@@ -38,6 +38,7 @@
 -export([start/2, stop/0,
          get_filepath/2, get_ref/2, get/2, get/3,
          put/3, put/4, put_begin_tran/2, put_end_tran/5,
+         get_size/2, get_cachepath/2,
          delete/2, stats/0]).
 
 -define(ID_PREFIX, "leo_dcerl_").
@@ -296,6 +297,49 @@ put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
             end
     end.
 
+-spec(get_size(Id, Key) ->
+            {ok, integer()} | {error, any()} when Id::integer(),
+                                                  Key::binary()|any()).
+get_size(Id, Key) ->
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
+        undefined ->
+            ?warn(?MODULE_STRING, "get_size/2", ?ERROR_MAYBE_CRASH_SERVER),
+            ok = restart(Id),
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case gen_server:call(Pid, {get_size, Key}) of
+                {ok, Size} ->
+                    {ok, Size};
+                not_found ->
+                    not_found;
+                {error, Cause} ->
+                    ?warn(?MODULE_STRING, "get_size/2", Cause),
+                    ok = restart(Id, Pid),
+                    {error, Cause}
+            end
+    end.
+
+-spec(get_cachepath(Id, Key) ->
+            {ok, string()} | {error, any()} when Id::integer(),
+                                                 Key::binary()|any()).
+get_cachepath(Id, Key) ->
+    case ?get_handler(?ETS_DISC_CACHE_HANDLERS, Id) of
+        undefined ->
+            ?warn(?MODULE_STRING, "get_cachepath/2", ?ERROR_MAYBE_CRASH_SERVER),
+            ok = restart(Id),
+            {error, ?ERROR_DISC_CACHE_INACTIVE};
+        Pid ->
+            case gen_server:call(Pid, {get_cachepath, Key}) of
+                {ok, Path} ->
+                    {ok, Path};
+                not_found ->
+                    not_found;
+                {error, Cause} ->
+                    ?warn(?MODULE_STRING, "get_cachepath/2", Cause),
+                    ok = restart(Id, Pid),
+                    {error, Cause}
+            end
+    end.
 
 %% @doc Remove an object from cache-server
 -spec(delete(Id, Key) ->
