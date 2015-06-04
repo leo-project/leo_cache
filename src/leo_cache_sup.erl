@@ -29,6 +29,8 @@
 
 -behaviour(supervisor).
 
+-include("leo_cache.hrl").
+
 %% API
 -export([start_link/0]).
 
@@ -36,6 +38,9 @@
 -export([init/1]).
 
 %% Helper macro for declaring children of supervisor
+-define(MAX_RESTART,              5).
+-define(MAX_TIME,                60).
+-define(SHUTDOWN_WAITING_TIME, 2000).
 -define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
 
 %% ===================================================================
@@ -48,7 +53,61 @@ start_link() ->
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
-
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+    %% Create tables
+    ok = leo_misc:init_env(),
+    case ets:info(?ETS_RAM_CACHE_HANDLERS) of
+        undefined ->
+            case ets:new(?ETS_RAM_CACHE_HANDLERS,
+                         [named_table, set, public, {read_concurrency, true}]) of
+                ?ETS_RAM_CACHE_HANDLERS ->
+                    ok;
+                _ ->
+                    erlang:error({error, could_not_create_ets_table})
+            end;
+        _ ->
+            ok
+    end,
+    case ets:info(?ETS_DISC_CACHE_HANDLERS) of
+        undefined ->
+            case ets:new(?ETS_DISC_CACHE_HANDLERS,
+                         [named_table, set, public, {read_concurrency, true}]) of
+                ?ETS_DISC_CACHE_HANDLERS ->
+                    ok;
+                _ ->
+                    erlang:error({error, could_not_create_ets_table})
+            end;
+        _ ->
+            ok
+    end,
+    case ets:info(?ETS_CACHE_SERVER_INFO) of
+        undefined ->
+            case ets:new(?ETS_CACHE_SERVER_INFO,
+                         [named_table, set, public, {read_concurrency, true}])of
+                ?ETS_CACHE_SERVER_INFO ->
+                    ok;
+                _ ->
+                    erlang:error({error, could_not_create_ets_table})
+            end;
+        _ ->
+            ok
+    end,
+
+    %% Set supervised childrens
+    Children = [
+                {leo_mcerl_sup,
+                 {leo_mcerl_sup, start_link, []},
+                 permanent,
+                 ?SHUTDOWN_WAITING_TIME,
+                 supervisor,
+                 [leo_mcerl_sup]},
+
+                {leo_dcerl_sup,
+                 {leo_dcerl_sup, start_link, []},
+                 permanent,
+                 ?SHUTDOWN_WAITING_TIME,
+                 supervisor,
+                 [leo_dcerl_sup]}
+               ],
+    {ok, {_SupFlags = {one_for_one, ?MAX_RESTART, ?MAX_TIME}, Children}}.
 
