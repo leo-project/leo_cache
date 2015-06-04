@@ -36,6 +36,7 @@
 -export([start/0, start/1, stop/0,
          get_filepath/1, get_ref/1, get/1, get/2,
          put/2, put/3, put_begin_tran/1, put_end_tran/4,
+         readmode_end/2, 
          delete/1, stats/0]).
 
 
@@ -148,7 +149,6 @@ get_filepath(Key) ->
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
-%            leo_cache_tran:wait_tran(object, Key),
             DC:get_filepath(Id, Key);
         false ->
             not_found
@@ -170,7 +170,6 @@ get(Key) ->
 
     case Active1 of
         true ->
-%            leo_cache_tran:wait_tran(object, Key),
             case RC:get(Id1, Key) of
                 {ok, Bin} ->
                     {ok, Bin};
@@ -228,7 +227,6 @@ put(Key, Value) ->
               false ->
                   ok
           end,
-%    leo_cache_tran:end_tran(object, Key),
     Ret.
 
 
@@ -298,8 +296,15 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
               false ->
                   {error, ?ERROR_INVALID_OPERATION}
           end,
-%    leo_cache_tran:end_tran(object, Key),
     Ret.
+
+%% @doc Close the handler of tmp datafile (Read Mode)
+-spec(readmode_end(Ref, Key) ->
+            ok | {error, any()} when Ref::file:iodevice(),
+                                     Key::binary()).
+readmode_end(Ref, Key) ->
+    leo_cache_tran:end_tran(transfer, Key),
+    file:close(Ref).
 
 %% @doc Remove an object from the momory storage
 -spec(delete(Key) ->
