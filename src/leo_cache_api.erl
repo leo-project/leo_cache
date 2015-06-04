@@ -296,6 +296,7 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
               false ->
                   {error, ?ERROR_INVALID_OPERATION}
           end,
+    leo_cache_tran:end_tran(object, Key),
     Ret.
 
 %% @doc Close the handler of tmp datafile (Read Mode)
