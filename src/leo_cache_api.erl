@@ -258,7 +258,7 @@ put_begin_tran(Key) ->
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
-            case leo_cache_tran:begin_tran(self(), object, Key) of
+            case leo_cache_tran:begin_tran(object, Key) of
                 ok ->
                     case DC:put_begin_tran(Id, Key) of
                         {ok, Ref} ->

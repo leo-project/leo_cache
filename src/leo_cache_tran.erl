@@ -32,7 +32,7 @@
 -export([start_link/0,
          stop/0]).
 
--export([begin_tran/3,
+-export([begin_tran/2,
          wait_tran/2, wait_tran/3,
          end_tran/2]).
 
@@ -60,12 +60,11 @@ stop() ->
     gen_server:call(?MODULE, stop).
 
 %% @doc Try obtain the Cache Lock
--spec(begin_tran(Pid, Tbl, Key) ->
-             ok | {error, in_process} when Pid::pid(),
-                                           Tbl::atom(),
+-spec(begin_tran(Tbl, Key) ->
+             ok | {error, in_process} when Tbl::atom(),
                                            Key::any()).
-begin_tran(Pid, Tbl, Key) ->
-    gen_server:call(?MODULE, {begin_tran, Pid, Tbl, Key}, ?TRAN_TIMEOUT).
+begin_tran(Tbl, Key) ->
+    gen_server:call(?MODULE, {begin_tran, Tbl, Key}, ?TRAN_TIMEOUT).
 
 
 %% @doc Wait for the Cache Lock
@@ -114,7 +113,7 @@ init([]) ->
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 
-handle_call({begin_tran, Pid, Tbl, Key}, _From, State) ->
+handle_call({begin_tran, Tbl, Key}, {Pid, _Tag}, State) ->
     case ets:insert_new(?REPLYDB, {{Tbl, Key}, []}) of
         true ->
             MonitorRef = erlang:monitor(process, Pid),
@@ -158,12 +157,12 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', MonitorRef, _Type, _Pid,_Info}, State) ->
     case ets:lookup(?PROCESSDB, MonitorRef) of
         [{MonitorRef, {Tbl, Key}}] ->
+            ets:delete(?MONITORDB, {Tbl, Key}),
             reply_all(Tbl, Key);
         _ ->
             void
     end,
     ets:delete(?PROCESSDB, MonitorRef),
-    ets:delete(?MONITORDB, {Tbl, Key});
     erlang:demonitor(MonitorRef),
     {noreply, State, ?TRAN_TIMEOUT};
 handle_info(_Info, State) ->

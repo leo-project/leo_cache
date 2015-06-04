@@ -37,7 +37,7 @@ lock_test() ->
     leo_cache_tran:start_link(),
 
     ?debugMsg(" * Lock   {object, 1}"),
-    leo_cache_tran:begin_tran(self(), object, 1),
+    leo_cache_tran:begin_tran(object, 1),
 
     ?debugMsg(" * Check  {object, 1} (timeout)"),
     {error, timeout} = leo_cache_tran:wait_tran(object, 1),
