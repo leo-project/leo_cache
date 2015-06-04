@@ -267,7 +267,7 @@ put_begin_tran(Key) ->
                             Ret
                     end;
                 {error, in_process} ->
-                    case DC:get_cachepath(Id, Key) of
+                    case DC:get_tmp_cachepath(Id, Key) of
                         {ok, Path} ->
                             {ok, Ref} = file:open(Path, [read, raw, binary, read_ahead]),
                             {ok, read, Ref};
