@@ -130,7 +130,7 @@ suite_2_(_) ->
     ?assertEqual(0, CS2#stats.records),
 
     %% Test - PUT#2
-    {ok, Ref} = leo_cache_api:put_begin_tran(BinKey),
+    {ok, write, Ref} = leo_cache_api:put_begin_tran(BinKey),
     Chunk = data_block(Src, 1001),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),

@@ -36,6 +36,7 @@
 -export([start/0, start/1, stop/0,
          get_filepath/1, get_ref/1, get/1, get/2,
          put/2, put/3, put_begin_tran/1, put_end_tran/4,
+         readmode_end/2, 
          delete/1, stats/0]).
 
 
@@ -107,6 +108,7 @@ start(Options) ->
 -spec(stop() ->
              ok).
 stop() ->
+    leo_cache_tran:stop(),
     Options = ?get_options(),
     case leo_misc:get_value(?PROP_RAM_CACHE_MOD,  Options) of
         undefined -> void;
@@ -215,16 +217,17 @@ put(Key, Value) ->
                   disc_cache_active = Active2,
                   chunk_threshold_len = ChunkThresholdLen} = ?cache_servers(Key),
 
-    case (size(Value) < ChunkThresholdLen) of
-        true when Active1 == true ->
-            RC:put(Id1, Key, Value);
-        true ->
-            ok;
-        false when Active2 == true ->
-            DC:put(Id2, Key, Value);
-        false ->
-            ok
-    end.
+    Ret = case (size(Value) < ChunkThresholdLen) of
+              true when Active1 == true ->
+                  RC:put(Id1, Key, Value);
+              true ->
+                  ok;
+              false when Active2 == true ->
+                  DC:put(Id2, Key, Value);
+              false ->
+                  ok
+          end,
+    Ret.
 
 
 %% @doc Insert a chunked-object into the disc
@@ -253,7 +256,25 @@ put_begin_tran(Key) ->
                   disc_cache_active = Active} = ?cache_servers(Key),
     case Active of
         true ->
-            DC:put_begin_tran(Id, Key);
+            case leo_cache_tran:begin_tran(object, Key) of
+                ok ->
+                    case DC:put_begin_tran(Id, Key) of
+                        {ok, Ref} ->
+                            {ok, write, Ref};
+                        Ret ->
+                            Ret
+                    end;
+                {error, in_process} ->
+                    case DC:get_tmp_cachepath(Id, Key) of
+                        {ok, Path} ->
+                            {ok, Ref} = file:open(Path, [read, raw, binary, read_ahead]),
+                            {ok, read, Ref};
+                        Ret ->
+                            Ret
+                    end;
+                _ ->
+                    {error, ?ERROR_INVALID_OPERATION}
+            end;
         false ->
             {error, ?ERROR_INVALID_OPERATION}
     end.
@@ -269,13 +290,22 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
     #cache_server{disc_cache_mod    = DC,
                   disc_cache_index  = Id,
                   disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
-            DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
-        false ->
-            {error, ?ERROR_INVALID_OPERATION}
-    end.
+    Ret = case Active of
+              true ->
+                  DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
+              false ->
+                  {error, ?ERROR_INVALID_OPERATION}
+          end,
+    leo_cache_tran:end_tran(object, Key),
+    Ret.
 
+%% @doc Close the handler of tmp datafile (Read Mode)
+-spec(readmode_end(Ref, Key) ->
+            ok | {error, any()} when Ref::file:iodevice(),
+                                     Key::binary()).
+readmode_end(Ref, Key) ->
+    leo_cache_tran:end_tran(transfer, Key),
+    file:close(Ref).
 
 %% @doc Remove an object from the momory storage
 -spec(delete(Key) ->
