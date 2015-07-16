@@ -79,7 +79,6 @@ start(Workers, Options) ->
                             |lists:delete({?PROP_DISC_CACHE_JOURNAL_DIR, JournalDir}, Options2)],
                 {JournalDir1, Options3}
         end,
-    ?debugVal(Options4),
 
     ok = leo_misc:set_env(leo_cache, ?PROP_OPTIONS, Options4),
     Params = [DataDir2,
