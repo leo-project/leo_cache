@@ -9,7 +9,7 @@
 
 ## Usage in Leo Project
 
-**leo_mq** is used in [**leo_gateway**](https://github.com/leo-project/leo_gateway) and [**leo_storage**](https://github.com/leo-project/leo_storage)
+**leo_cache** is used in [**leo_gateway**](https://github.com/leo-project/leo_gateway) and [**leo_storage**](https://github.com/leo-project/leo_storage)
 It is used to store data on RAM/Disk to keep a performance of an applicaion.
 
 ## Sponsors
