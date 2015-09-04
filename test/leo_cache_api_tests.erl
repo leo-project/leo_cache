@@ -37,7 +37,7 @@
 -ifdef(EUNIT).
 -behaviour(leo_tran_behaviour).
 %% Callbakcs for leo_tran_behaviour
--export([run/4, wait/4, resume/4, commit/4, rollback/5]).
+-export([run/5, wait/5, resume/5, commit/5, rollback/6]).
 
 cache_test_() ->
     {foreach, fun setup/0, fun teardown/1,
@@ -136,15 +136,18 @@ suite_2_(_) ->
     ?assertEqual(0, CS2#stats.records),
 
     %% Test - PUT#2
+    Chunk = data_block(Src, 8192),
     PidList = [
     erlang:spawn(fun() ->
-        case leo_tran:run(BinKey, null, null, ?MODULE, [{?PROP_IS_WAIT_FOR_TRAN, false}]) of
+        case leo_tran:run(BinKey, null, null, ?MODULE, Chunk, [{?PROP_IS_WAIT_FOR_TRAN, false}]) of
             {error, ?ERROR_ALREADY_HAS_TRAN} ->
                 io:format(user, "[reader] start bin:~p~n", [BinKey]),
                 {ok, Ref} = leo_cache_api:put_begin_tran(read, BinKey),
                 leo_tran:wait(BinKey, null, null),
-                {ok, _} = file:read(Ref, 8192*3),
-                eof = file:read(Ref, 1024),
+                {ok, Chunk} = file:read(Ref, 8192),
+                {ok, Chunk} = file:read(Ref, 8192),
+                {ok, Chunk} = file:read(Ref, 8192),
+                eof = file:read(Ref, 8192),
                 ok = leo_cache_api:put_end_tran(Ref, read, BinKey, undef, true),
                 %io:format(user, "[reader] end bin:~p ret:~p ~n", [BinKey, Ret]);
                 io:format(user, "[reader] end bin:~p ~n", [BinKey]);
@@ -191,12 +194,10 @@ wait_processes([H|Rest] = List) ->
     end.
 
 %% Callbakcs for leo_tran_behaviour
-run(BinKey, _, _, State) ->
+run(BinKey, _, _, Chunk, State) ->
     io:format(user, "[writer] start bin:~p state~p~n", [BinKey, State]),
     {ok, Ref} = leo_cache_api:put_begin_tran(write, BinKey),
     timer:sleep(100),
-    Src = init_source(),
-    Chunk = data_block(Src, 8192),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
@@ -209,13 +210,13 @@ run(BinKey, _, _, State) ->
     io:format(user, "[writer] finish bin:~p~n", [BinKey]),
     ok.
 
-wait(_, _, _, _) ->
+wait(_, _, _, _, _) ->
         ok.
-resume(_, _, _, _) ->
+resume(_, _, _, _, _) ->
         ok.
-commit(_, _, _, _) ->
+commit(_, _, _, _, _) ->
         ok.
-rollback(_, _, _, _, _) ->
+rollback(_, _, _, _, _, _) ->
         ok.
 
 init_source() ->
