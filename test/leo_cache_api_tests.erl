@@ -136,7 +136,6 @@ suite_2_(_) ->
     ?assertEqual(0, CS2#stats.records),
 
     %% Test - PUT#2
-    leo_tran:run(BinKey, null, null, ?MODULE, [{?PROP_IS_WAIT_FOR_TRAN, false}]),
     PidList = [
     erlang:spawn(fun() ->
         case leo_tran:run(BinKey, null, null, ?MODULE, [{?PROP_IS_WAIT_FOR_TRAN, false}]) of
@@ -144,7 +143,8 @@ suite_2_(_) ->
                 io:format(user, "[reader] start bin:~p~n", [BinKey]),
                 {ok, Ref} = leo_cache_api:put_begin_tran(read, BinKey),
                 leo_tran:wait(BinKey, null, null),
-                {ok, _} = file:read(Ref, 512),
+                {ok, _} = file:read(Ref, 8192*3),
+                eof = file:read(Ref, 1024),
                 ok = leo_cache_api:put_end_tran(Ref, read, BinKey, undef, true),
                 %io:format(user, "[reader] end bin:~p ret:~p ~n", [BinKey, Ret]);
                 io:format(user, "[reader] end bin:~p ~n", [BinKey]);
@@ -156,7 +156,7 @@ suite_2_(_) ->
     wait_processes(PidList),
 
     {ok, CS3} = leo_cache_api:stats(),
-    ?assertEqual(true, CS3#stats.put >= 2),
+    ?assertEqual(2, CS3#stats.put),
     ?assertEqual(1, CS3#stats.records),
 
     %% Test - Get#2/Delete#2
@@ -184,7 +184,7 @@ wait_processes([]) ->
 wait_processes([H|Rest] = List) ->
     case is_process_alive(H) of
         true ->
-            timer:sleep(1000),
+            timer:sleep(100),
             wait_processes(List);
         false ->
             wait_processes(Rest)
@@ -194,6 +194,7 @@ wait_processes([H|Rest] = List) ->
 run(BinKey, _, _, State) ->
     io:format(user, "[writer] start bin:~p state~p~n", [BinKey, State]),
     {ok, Ref} = leo_cache_api:put_begin_tran(write, BinKey),
+    timer:sleep(100),
     Src = init_source(),
     Chunk = data_block(Src, 8192),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
@@ -205,6 +206,7 @@ run(BinKey, _, _, State) ->
         content_type = "image/jpeg"},
     ok = leo_cache_api:put_end_tran(Ref, write, BinKey, CM, true),
     leo_tran:notify_all(BinKey, null, null),
+    io:format(user, "[writer] finish bin:~p~n", [BinKey]),
     ok.
 
 wait(_, _, _, _) ->
