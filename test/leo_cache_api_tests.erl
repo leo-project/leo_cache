@@ -2,7 +2,7 @@
 %%
 %% Leo Cache
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -54,7 +54,7 @@ teardown(_) ->
 suite_1_(_) ->
     Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
                 {?PROP_RAM_CACHE_WORKERS,  2},
-                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 16}, %% at least need 1MB
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 16},
                 {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
                 {?PROP_DISC_CACHE_WORKERS, 0},
                 {?PROP_DISC_CACHE_SIZE,    0},
@@ -62,7 +62,6 @@ suite_1_(_) ->
                 {?PROP_DISC_CACHE_DATA_DIR,    ?DEF_PROP_DISC_CACHE_DATA_DIR},
                 {?PROP_DISC_CACHE_JOURNAL_DIR, ?DEF_PROP_DISC_CACHE_JOURNAL_DIR}
                ],
-    ?debugVal(Options),
     leo_cache_api:start(Options),
 
     Key1 = <<"photo/image/hawaii-0.png">>,
@@ -91,6 +90,15 @@ suite_1_(_) ->
     ?assertEqual(1, H),
     ?assertEqual(1, R),
     ?assertEqual(true, (S >= 128)),
+
+    %% leo_cache's ets has no records.
+    ets:delete_all_objects(?ETS_CACHE_SERVER_INFO),
+    _TestKey = <<"path/to/object">>,
+    ok = leo_cache_api:put(_TestKey, <<>>),
+    not_found = leo_cache_api:get(_TestKey),
+    ok = leo_cache_api:delete(_TestKey),
+    {ok,{stats,0,0,0,0,0,0}} = leo_cache_api:stats(),
+
     leo_cache_api:stop(),
     ok.
 
@@ -99,7 +107,7 @@ suite_2_(_) ->
     %% Launch Server
     Options =  [{?PROP_RAM_CACHE_NAME,     ?DEF_PROP_RAM_CACHE},
                 {?PROP_RAM_CACHE_WORKERS,  2},
-                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4}, %% at least need 1MB
+                {?PROP_RAM_CACHE_SIZE,     1024 * 1024 * 4},
                 {?PROP_DISC_CACHE_NAME,    ?DEF_PROP_DISC_CACHE},
                 {?PROP_DISC_CACHE_WORKERS, 2},
                 {?PROP_DISC_CACHE_SIZE,    1024 * 1024 * 16},
@@ -136,9 +144,9 @@ suite_2_(_) ->
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     ok = leo_cache_api:put(Ref, BinKey, Chunk),
     CM = #cache_meta{
-        md5 = 1,
-        mtime = 123,
-        content_type = "image/jpeg"},
+            md5 = 1,
+            mtime = 123,
+            content_type = "image/jpeg"},
     ok = leo_cache_api:put_end_tran(Ref, BinKey, CM, true),
 
     {ok, CS3} = leo_cache_api:stats(),
