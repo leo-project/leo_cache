@@ -2,7 +2,7 @@
 %%
 %% Leo Cache
 %%
-%% Copyright (c) 2012-2014 Rakuten, Inc.
+%% Copyright (c) 2012-2015 Rakuten, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -125,13 +125,12 @@ stop() ->
              {ok, reference()} |
              {error, any()} when Key::binary()).
 get_ref(Key) ->
-    #cache_server{disc_cache_mod    = DC,
-                  disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
+    case ?cache_servers(Key) of
+        #cache_server{disc_cache_mod = DC,
+                      disc_cache_index = Id,
+                      disc_cache_active = true} ->
             DC:get_ref(Id, Key);
-        false ->
+        _ ->
             not_found
     end.
 
@@ -142,13 +141,12 @@ get_ref(Key) ->
              {ok, #cache_meta{}} |
              {error, any()} when Key::binary()).
 get_filepath(Key) ->
-    #cache_server{disc_cache_mod    = DC,
-                  disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
+    case ?cache_servers(Key) of
+        #cache_server{disc_cache_mod = DC,
+                      disc_cache_index = Id,
+                      disc_cache_active = true} ->
             DC:get_filepath(Id, Key);
-        false ->
+        _ ->
             not_found
     end.
 
@@ -159,26 +157,24 @@ get_filepath(Key) ->
              {ok, binary()} |
              {error, any()} when Key::binary()).
 get(Key) ->
-    #cache_server{ram_cache_mod     = RC,
-                  ram_cache_index   = Id1,
-                  ram_cache_active  = Active1,
-                  disc_cache_mod    = DC,
-                  disc_cache_index  = Id2,
-                  disc_cache_active = Active2} = ?cache_servers(Key),
-
-    case Active1 of
-        true ->
-            case RC:get(Id1, Key) of
+    case ?cache_servers(Key) of
+        #cache_server{ram_cache_mod = RC,
+                      ram_cache_index = Id_1,
+                      ram_cache_active = true,
+                      disc_cache_mod = DC,
+                      disc_cache_index = Id_2,
+                      disc_cache_active = DiskCacheActive} ->
+            case RC:get(Id_1, Key) of
                 {ok, Bin} ->
                     {ok, Bin};
-                not_found when Active2 == true ->
-                    DC:get(Id2, Key);
+                not_found when DiskCacheActive == true ->
+                    DC:get(Id_2, Key);
                 not_found ->
                     not_found;
                 {error, Cause} ->
                     {error, Cause}
             end;
-        false ->
+        _ ->
             not_found
     end.
 
@@ -191,13 +187,12 @@ get(Key) ->
              {error, any()} when Ref::reference(),
                                  Key::binary()).
 get(Ref, Key) ->
-    #cache_server{disc_cache_mod    = DC,
-                  disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
+    case ?cache_servers(Key) of
+        #cache_server{disc_cache_mod = DC,
+                      disc_cache_index = Id,
+                      disc_cache_active = true} ->
             DC:get(Id, Ref, Key);
-        false ->
+        _ ->
             not_found
     end.
 
@@ -207,23 +202,26 @@ get(Ref, Key) ->
              ok | {error, any()} when Key::binary(),
                                       Value::binary()).
 put(Key, Value) ->
-    #cache_server{ram_cache_mod     = RC,
-                  ram_cache_index   = Id1,
-                  ram_cache_active  = Active1,
-                  disc_cache_mod    = DC,
-                  disc_cache_index  = Id2,
-                  disc_cache_active = Active2,
-                  chunk_threshold_len = ChunkThresholdLen} = ?cache_servers(Key),
-
-    case (size(Value) < ChunkThresholdLen) of
-        true when Active1 == true ->
-            RC:put(Id1, Key, Value);
-        true ->
+    case ?cache_servers(Key) of
+        undefined ->
             ok;
-        false when Active2 == true ->
-            DC:put(Id2, Key, Value);
-        false ->
-            ok
+        #cache_server{ram_cache_mod = RC,
+                      ram_cache_index = Id_1,
+                      ram_cache_active = Active_1,
+                      disc_cache_mod = DC,
+                      disc_cache_index = Id_2,
+                      disc_cache_active = Active_2,
+                      chunk_threshold_len = ChunkThresholdLen} ->
+            case (size(Value) < ChunkThresholdLen) of
+                true when Active_1 == true ->
+                    RC:put(Id_1, Key, Value);
+                true ->
+                    ok;
+                false when Active_2 == true ->
+                    DC:put(Id_2, Key, Value);
+                false ->
+                    ok
+            end
     end.
 
 
@@ -233,13 +231,12 @@ put(Key, Value) ->
                                       Key::binary(),
                                       Value::binary()).
 put(Ref, Key, Value) ->
-    #cache_server{disc_cache_mod    = DC,
-                  disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
+    case ?cache_servers(Key) of
+        #cache_server{disc_cache_mod = DC,
+                      disc_cache_index = Id,
+                      disc_cache_active = true} ->
             DC:put(Id, Ref, Key, Value);
-        false ->
+        _ ->
             not_found
     end.
 
@@ -248,13 +245,12 @@ put(Ref, Key, Value) ->
 -spec(put_begin_tran(Key) ->
              {ok, reference()} | {error, any()} when Key::binary()).
 put_begin_tran(Key) ->
-    #cache_server{disc_cache_mod    = DC,
-                  disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
+    case ?cache_servers(Key) of
+        #cache_server{disc_cache_mod = DC,
+                      disc_cache_index = Id,
+                      disc_cache_active = true} ->
             DC:put_begin_tran(Id, Key);
-        false ->
+        _ ->
             {error, ?ERROR_INVALID_OPERATION}
     end.
 
@@ -266,13 +262,12 @@ put_begin_tran(Key) ->
                                                      Meta::#cache_meta{},
                                                      IsCommit::boolean()).
 put_end_tran(Ref, Key, Meta, IsCommit) ->
-    #cache_server{disc_cache_mod    = DC,
-                  disc_cache_index  = Id,
-                  disc_cache_active = Active} = ?cache_servers(Key),
-    case Active of
-        true ->
+    case ?cache_servers(Key) of
+        #cache_server{disc_cache_mod = DC,
+                      disc_cache_index = Id,
+                      disc_cache_active = true} ->
             DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
-        false ->
+        _ ->
             {error, ?ERROR_INVALID_OPERATION}
     end.
 
@@ -281,24 +276,22 @@ put_end_tran(Ref, Key, Meta, IsCommit) ->
 -spec(delete(Key) ->
              ok | {error, any()} when Key::binary()).
 delete(Key) ->
-    #cache_server{ram_cache_mod     = RC,
-                  ram_cache_index   = Id1,
-                  ram_cache_active  = Active1,
-                  disc_cache_mod    = DC,
-                  disc_cache_index  = Id2,
-                  disc_cache_active = Active2} = ?cache_servers(Key),
-
-    case Active1 of
-        true ->
-            case RC:delete(Id1, Key) of
-                ok when Active2 == true->
-                    DC:delete(Id2, Key);
+    case ?cache_servers(Key) of
+        #cache_server{ram_cache_mod = RC,
+                      ram_cache_index = Id_1,
+                      ram_cache_active = true,
+                      disc_cache_mod = DC,
+                      disc_cache_index = Id_2,
+                      disc_cache_active = Active_2} ->
+            case RC:delete(Id_1, Key) of
+                ok when Active_2 == true->
+                    DC:delete(Id_2, Key);
                 ok ->
                     ok;
                 {error, Cause} ->
                     {error, Cause}
             end;
-        false ->
+        _ ->
             ok
     end.
 
@@ -308,32 +301,31 @@ delete(Key) ->
 -spec(stats() ->
              {ok, any()}).
 stats() ->
-    #cache_server{ram_cache_mod     = RC,
-                  ram_cache_active  = Active1,
-                  disc_cache_mod    = DC,
-                  disc_cache_active = Active2} = ?cache_servers([]),
-    case Active1 of
-        true ->
+    case ?cache_servers([]) of
+        #cache_server{ram_cache_mod = RC,
+                      ram_cache_active = true,
+                      disc_cache_mod = DC,
+                      disc_cache_active = DiscCacheActive} ->
             case RC:stats() of
-                {ok, #stats{get     = G1,
-                            put     = P1,
-                            delete  = D1,
-                            hits    = H1,
-                            records = R1,
-                            size    = S1} = Stats} when Active2 == true->
+                {ok, #stats{get = G_1,
+                            put = P_1,
+                            delete = D_1,
+                            hits = H_1,
+                            records = R_1,
+                            size = S_1} = Stats} when DiscCacheActive == true->
                     case DC:stats() of
-                        {ok, #stats{get     = G2,
-                                    put     = P2,
-                                    delete  = D2,
-                                    hits    = H2,
-                                    records = R2,
-                                    size    = S2}} ->
-                            {ok, #stats{get     = G1+G2,
-                                        put     = P1+P2,
-                                        delete  = D1+D2,
-                                        hits    = H1+H2,
-                                        records = R1+R2,
-                                        size    = S1+S2}};
+                        {ok, #stats{get = G_2,
+                                    put = P_2,
+                                    delete = D_2,
+                                    hits = H_2,
+                                    records = R_2,
+                                    size = S_2}} ->
+                            {ok, #stats{get = G_1 + G_2,
+                                        put = P_1 + P_2,
+                                        delete = D_1 + D_2,
+                                        hits = H_1 + H_2,
+                                        records = R_1 + R_2,
+                                        size = S_1 + S_2}};
                         _ ->
                             {ok, Stats}
                     end;
@@ -342,6 +334,6 @@ stats() ->
                 {error, Cause} ->
                     {error, Cause}
             end;
-        false ->
-            ok
+        _ ->
+            {ok, #stats{}}
     end.
