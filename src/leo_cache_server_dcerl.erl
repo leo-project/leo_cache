@@ -466,7 +466,7 @@ stats_1(Id, Acc) ->
         undefined ->
             {error, ?ERROR_COULD_NOT_GET_STATS};
         Pid ->
-            case gen_server:call(Pid, {stats}) of
+            case gen_server:call(Pid, stats) of
                 {ok, #cache_stats{gets = Gets,
                                   puts = Puts,
                                   dels = Dels,
