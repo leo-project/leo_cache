@@ -293,6 +293,8 @@ put_end_tran(Id, Ref, Key, Meta, IsCommit) ->
             case gen_server:call(Pid, {put_end_tran, Ref, Key, Meta, IsCommit}) of
                 ok ->
                     ok;
+                {error, undefined} ->
+                    {error, undefined};
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "put_end_tran/4", Cause),
                     {error, Cause}
