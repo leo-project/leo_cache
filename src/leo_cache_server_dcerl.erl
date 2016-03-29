@@ -242,6 +242,8 @@ put(Id, Ref, Key, Value) ->
             case gen_server:call(Pid, {put, Ref, Key, Value}) of
                 ok ->
                     ok;
+                {error, undefined} ->
+                    {error, undefined};
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "put/4", Cause),
                     ok = restart(Id, Pid),
@@ -264,6 +266,8 @@ put_begin_tran(Id, Key) ->
             case gen_server:call(Pid, {put_begin_tran, Key}) of
                 {ok, Ref} ->
                     {ok, Ref};
+                {error, conflict} ->
+                    {error, conflict};
                 {error, Cause} ->
                     ?warn(?MODULE_STRING, "put_begin_tran/2", Cause),
                     ok = restart(Id, Pid),
