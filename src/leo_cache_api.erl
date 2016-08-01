@@ -30,14 +30,14 @@
 
 -include("leo_cache.hrl").
 -include_lib("leo_dcerl/include/leo_dcerl.hrl").
+-include_lib("leo_tran/include/leo_tran.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %% External API
 -export([start/0, start/1, stop/0,
          get_filepath/1, get_ref/1, get/1, get/2,
-         put/2, put/3, put_begin_tran/1, put_end_tran/4,
+         put/2, put/3, put_begin_tran/2, put_end_tran/5,
          delete/1, stats/0]).
-
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -242,32 +242,55 @@ put(Ref, Key, Value) ->
 
 
 %% @doc Insert a chunked-object into the disc
--spec(put_begin_tran(Key) ->
-             {ok, reference()} | {error, any()} when Key::binary()).
-put_begin_tran(Key) ->
-    case ?cache_servers(Key) of
-        #cache_server{disc_cache_mod = DC,
-                      disc_cache_index = Id,
-                      disc_cache_active = true} ->
-            DC:put_begin_tran(Id, Key);
-        _ ->
+-spec(put_begin_tran(Mode, Key) ->
+             {ok, reference()} | {error, any()} when Mode::read | write,
+                                                     Key::binary()).
+put_begin_tran(Mode, Key) ->
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key),
+    case Active of
+        true ->
+            case Mode of
+                write ->
+                    case DC:put_begin_tran(Id, Key) of
+                        {ok, Ref} ->
+                            {ok, Ref};
+                        Other ->
+                            Other
+                    end;
+                read ->
+                    case DC:get_tmp_cachepath(Id, Key) of
+                        {ok, Path} ->
+                            file:open(Path, [read, raw, binary, read_ahead]);
+                        Other ->
+                            Other
+                    end
+            end;
+        false ->
             {error, ?ERROR_INVALID_OPERATION}
     end.
 
-
 %% @doc Insert a chunked-object into the disc
--spec(put_end_tran(Ref, Key, Meta, IsCommit) ->
+-spec(put_end_tran(Ref, Mode, Key, Meta, IsCommit) ->
              {ok, reference()} | {error, any()} when Ref::reference(),
+                                                     Mode::read | write,
                                                      Key::binary(),
                                                      Meta::#cache_meta{},
                                                      IsCommit::boolean()).
-put_end_tran(Ref, Key, Meta, IsCommit) ->
-    case ?cache_servers(Key) of
-        #cache_server{disc_cache_mod = DC,
-                      disc_cache_index = Id,
-                      disc_cache_active = true} ->
-            DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
-        _ ->
+put_end_tran(Ref, Mode, Key, Meta, IsCommit) ->
+    #cache_server{disc_cache_mod    = DC,
+                  disc_cache_index  = Id,
+                  disc_cache_active = Active} = ?cache_servers(Key),
+    case Active of
+        true ->
+            case Mode of
+                write ->
+                    DC:put_end_tran(Id, Ref, Key, Meta, IsCommit);
+                read ->
+                    file:close(Ref)
+            end;
+        false ->
             {error, ?ERROR_INVALID_OPERATION}
     end.
 
@@ -337,3 +360,4 @@ stats() ->
         _ ->
             {ok, #stats{}}
     end.
+

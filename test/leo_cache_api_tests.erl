@@ -28,12 +28,16 @@
 
 -include("leo_cache.hrl").
 -include_lib("leo_dcerl/include/leo_dcerl.hrl").
+-include_lib("leo_tran/include/leo_tran.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %%--------------------------------------------------------------------
 %% TEST FUNCTIONS
 %%--------------------------------------------------------------------
 -ifdef(EUNIT).
+-behaviour(leo_tran_behaviour).
+%% Callbakcs for leo_tran_behaviour
+-export([run/5, wait/5, resume/5, commit/5, rollback/6]).
 
 cache_test_() ->
     {foreach, fun setup/0, fun teardown/1,
@@ -42,12 +46,14 @@ cache_test_() ->
                           ]]}.
 
 setup() ->
+    ok = application:start(leo_tran),
     ok = application:start(leo_cache),
     os:cmd("rm -rf ./cache"),
     ok.
 
 teardown(_) ->
     ok = application:stop(leo_cache),
+    ok = application:stop(leo_tran),
     ok.
 
 %% for RAM Cache
@@ -138,16 +144,27 @@ suite_2_(_) ->
     ?assertEqual(0, CS2#stats.records),
 
     %% Test - PUT#2
-    {ok, Ref} = leo_cache_api:put_begin_tran(BinKey),
-    Chunk = data_block(Src, 1001),
-    ok = leo_cache_api:put(Ref, BinKey, Chunk),
-    ok = leo_cache_api:put(Ref, BinKey, Chunk),
-    ok = leo_cache_api:put(Ref, BinKey, Chunk),
-    CM = #cache_meta{
-            md5 = 1,
-            mtime = 123,
-            content_type = "image/jpeg"},
-    ok = leo_cache_api:put_end_tran(Ref, BinKey, CM, true),
+    Chunk = data_block(Src, 8192),
+    PidList = [
+    erlang:spawn(fun() ->
+        case leo_tran:run(BinKey, null, null, ?MODULE, Chunk, [{?PROP_IS_WAIT_FOR_TRAN, false}]) of
+            {error, ?ERROR_ALREADY_HAS_TRAN} ->
+                io:format(user, "[reader] start bin:~p~n", [BinKey]),
+                {ok, Ref} = leo_cache_api:put_begin_tran(read, BinKey),
+                leo_tran:wait(BinKey, null, null),
+                {ok, Chunk} = file:read(Ref, 8192),
+                {ok, Chunk} = file:read(Ref, 8192),
+                {ok, Chunk} = file:read(Ref, 8192),
+                eof = file:read(Ref, 8192),
+                ok = leo_cache_api:put_end_tran(Ref, read, BinKey, undef, true),
+                %io:format(user, "[reader] end bin:~p ret:~p ~n", [BinKey, Ret]);
+                io:format(user, "[reader] end bin:~p ~n", [BinKey]);
+            {value, _} ->
+                void
+        end
+    end) || _ <- lists:seq(1, 5)
+    ],
+    wait_processes(PidList),
 
     {ok, CS3} = leo_cache_api:stats(),
     ?assertEqual(2, CS3#stats.put),
@@ -155,13 +172,13 @@ suite_2_(_) ->
 
     %% Test - Get#2/Delete#2
     {ok, Bin2} = leo_cache_api:get(BinKey),
-    ?assertEqual((1001*3), byte_size(Bin2)),
+    ?assertEqual((8192*3), byte_size(Bin2)),
 
     {ok, Ref2} = leo_cache_api:get_ref(BinKey),
-    ok = get_chunked(Ref2, BinKey, Chunk),
+    ok = get_chunked(Ref2, BinKey),
 
     {ok, CM2} = leo_cache_api:get_filepath(BinKey),
-    ?assertEqual(1001*3, CM2#cache_meta.size),
+    ?assertEqual(8192*3, CM2#cache_meta.size),
     ?assertEqual(1, CM2#cache_meta.md5),
     ?assertEqual(123, CM2#cache_meta.mtime),
     ?assertEqual("image/jpeg", CM2#cache_meta.content_type),
@@ -173,8 +190,43 @@ suite_2_(_) ->
     ok = leo_cache_api:delete(BinKey),
     ok.
 
+wait_processes([]) ->
+    ok;
+wait_processes([H|Rest] = List) ->
+    case is_process_alive(H) of
+        true ->
+            timer:sleep(100),
+            wait_processes(List);
+        false ->
+            wait_processes(Rest)
+    end.
 
-%% gen test data
+%% Callbakcs for leo_tran_behaviour
+run(BinKey, _, _, Chunk, State) ->
+    io:format(user, "[writer] start bin:~p state~p~n", [BinKey, State]),
+    {ok, Ref} = leo_cache_api:put_begin_tran(write, BinKey),
+    timer:sleep(100),
+    ok = leo_cache_api:put(Ref, BinKey, Chunk),
+    ok = leo_cache_api:put(Ref, BinKey, Chunk),
+    ok = leo_cache_api:put(Ref, BinKey, Chunk),
+    CM = #cache_meta{
+        md5 = 1,
+        mtime = 123,
+        content_type = "image/jpeg"},
+    ok = leo_cache_api:put_end_tran(Ref, write, BinKey, CM, true),
+    leo_tran:notify_all(BinKey, null, null),
+    io:format(user, "[writer] finish bin:~p~n", [BinKey]),
+    ok.
+
+wait(_, _, _, _, _) ->
+        ok.
+resume(_, _, _, _, _) ->
+        ok.
+commit(_, _, _, _, _) ->
+        ok.
+rollback(_, _, _, _, _, _) ->
+        ok.
+
 init_source() ->
     SourceSz = 1024 * 1024,
     {SourceSz, crypto:rand_bytes(SourceSz)}.
@@ -189,12 +241,12 @@ data_block({SourceSz, Source}, BlockSize) ->
             Source
     end.
 
-get_chunked(Ref, Key, Chunk) ->
+get_chunked(Ref, Key) ->
     case leo_cache_api:get(Ref, Key) of
         {ok, done} ->
             ok;
-        {ok, Chunk} ->
-            get_chunked(Ref, Key, Chunk)
+        {ok, _Chunk} ->
+            get_chunked(Ref, Key)
     end.
 
 -endif.
