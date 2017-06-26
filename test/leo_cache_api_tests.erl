@@ -68,7 +68,7 @@ suite_1_(_) ->
 
     Key1 = <<"photo/image/hawaii-0.png">>,
     Key2 = <<"photo/image/hawaii-1.png">>,
-    Value = crypto:rand_bytes(128),
+    Value = crypto:strong_rand_bytes(128),
 
     ok = leo_cache_api:put(Key1, Value),
     ok = leo_cache_api:put(Key2, Value),
@@ -225,7 +225,7 @@ rollback(_, _, _, _, _, _) ->
 
 init_source() ->
     SourceSz = 1024 * 1024,
-    {SourceSz, crypto:rand_bytes(SourceSz)}.
+    {SourceSz, crypto:strong_rand_bytes(SourceSz)}.
 
 data_block({SourceSz, Source}, BlockSize) ->
     case SourceSz - BlockSize > 0 of
