@@ -37,7 +37,7 @@
 -export([start/0, start/1, stop/0,
          get_filepath/1, get_ref/1, get/1, get/2,
          put/2, put/3, put_begin_tran/2, put_end_tran/5,
-         delete/1, stats/0]).
+         delete/1, stats/0, is_disc_cache_active/0]).
 
 %%-----------------------------------------------------------------------
 %% External API
@@ -361,3 +361,15 @@ stats() ->
             {ok, #stats{}}
     end.
 
+
+%% @doc Return if Disk Cache is active
+%%
+-spec(is_disc_cache_active() ->
+    boolean()).
+is_disc_cache_active() ->
+    case ets:lookup(?ETS_CACHE_SERVER_INFO, 0) of
+        [{_, Item}|_] ->
+            Item#cache_server.disc_cache_active;
+        _ ->
+            false
+    end.
