@@ -1,0 +1,12 @@
+language: erlang
+script: "make"
+notifications:
+  email: false
+before_install:
+  - sudo apt-get update
+  - sudo apt-get -y install check cmake
+otp_release:
+  - 19.3
+  - 20.3
+  - 21.3
+  - 22.2
