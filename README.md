@@ -1,11 +1,10 @@
 # leo_cache
 
+[![Build Status](https://travis-ci.org/leo-project/leo_cache.svg?branch=develop)](https://travis-ci.org/leo-project/leo_cache)
+
 ## Overview
 
-* "leo_cache" is object cache-controller, which realized layered cache with using RAM cache-server and Disc cache-server
-* "leo_cache" uses the "rebar" build system. Makefile so that simply running "make" at the top level should work.
-  * [rebar](https://github.com/rebar/rebar)
-* "leo_cache" requires Erlang R16B03-1 or later.
+"leo_cache" is object cache-controller, which realized layered cache with using RAM cache-server and Disc cache-server
 
 ## Usage in Leo Project
 
@@ -14,4 +13,5 @@ It is used to store data on RAM/Disk to keep a performance of an applicaion.
 
 ## Sponsors
 
-LeoProject/LeoFS is sponsored by [Rakuten, Inc.](http://global.rakuten.com/corp/) and supported by [Rakuten Institute of Technology](http://rit.rakuten.co.jp/).
+* LeoProject/LeoFS was sponsored by [Rakuten, Inc.](http://global.rakuten.com/corp/) from 2012 to Dec of 2018.
+* LeoProject/LeoFS is sponsored by [Lions Data, Inc](https://lions-data.com/) from Jan of 2019.
