@@ -10,3 +10,6 @@ leo_cache.dot
 leo_cache.png
 doc/
 .rebar/
+_build/
+rebar.lock
+cache/
